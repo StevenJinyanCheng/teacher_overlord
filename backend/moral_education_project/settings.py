@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',  # Added for token authentication
     'corsheaders',
     'api',  # Your app
 ]
@@ -130,10 +131,34 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Assuming Vite's default dev port
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
-CORS_ALLOW_CREDENTIALS = True  # Allow cookies to be sent
+CORS_ALLOW_CREDENTIALS = True
+
+# Ensure the frontend origin is trusted for CSRF (good for future forms/POST requests)
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Explicitly set SameSite policy for session cookie (Lax is default but let's be explicit)
+# For development on HTTP, 'Lax' is appropriate.
+# If you were on HTTPS, you might use 'None' with SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+# SESSION_COOKIE_SECURE = False # Ensure this is False for HTTP development
+# SESSION_COOKIE_HTTPONLY = True # Default and generally good
 
 # If you want to allow all origins (not recommended for production)
 # CORS_ALLOW_ALL_ORIGINS = True
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        # SessionAuthentication is still useful for browsable API and Django admin
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}

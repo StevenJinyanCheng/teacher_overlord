@@ -25,3 +25,14 @@ class CustomUser(AbstractUser):
 # You might want to create separate models for StudentProfile, TeacherProfile, etc.
 # if they have significantly different fields, and link them to CustomUser with a OneToOneField.
 # For now, we'll keep it simple with just the role on the CustomUser model.
+
+class Grade(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    # Add other fields if necessary, e.g., level for ordering
+    # level = models.IntegerField(unique=True, null=True, blank=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name'] # Or ['level'] if you add a level field
