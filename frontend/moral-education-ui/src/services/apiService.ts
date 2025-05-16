@@ -27,7 +27,14 @@ export interface User {
   id: number;
   username: string;
   email: string;
-  role: string; // Add role if it's part of the User data from /api/users/me/
+  first_name?: string;
+  last_name?: string;
+  role: string; 
+  role_display?: string;
+  is_active?: boolean;
+  is_staff?: boolean;
+  date_joined?: string;
+  password?: string; // For create/update, should not be returned by GET
 }
 
 export interface LoginCredentials {
@@ -101,6 +108,39 @@ export const getCurrentUser = async (): Promise<User> => {
     return response.data;
   } catch (error) {
     console.error('Failed to fetch current user:', error);
+    throw error;
+  }
+};
+
+// Service function to create a user
+export const createUser = async (userData: Omit<User, 'id' | 'role_display' | 'date_joined'>): Promise<User> => {
+  try {
+    const response = await apiClient.post<User>('/users/', userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    throw error;
+  }
+};
+
+// Service function to update a user
+export const updateUser = async (userId: number, userData: Partial<Omit<User, 'id' | 'role_display' | 'date_joined' | 'username'>>): Promise<User> => {
+  try {
+    // Username is typically not updatable or handled differently, so excluding it from Partial update payload
+    const response = await apiClient.put<User>(`/users/${userId}/`, userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating user:', error);
+    throw error;
+  }
+};
+
+// Service function to delete a user
+export const deleteUser = async (userId: number): Promise<void> => {
+  try {
+    await apiClient.delete(`/users/${userId}/`);
+  } catch (error) {
+    console.error('Error deleting user:', error);
     throw error;
   }
 };

@@ -11,9 +11,13 @@ class UserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = (
             'id', 'username', 'email', 'first_name', 'last_name', 
+            'password', # Add password here
             'role', 'role_display', 'is_active', 'is_staff', 'date_joined'
         )
         read_only_fields = ('date_joined', 'role_display')
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False} # Make password write_only and not required on updates
+        }
 
     def create(self, validated_data):
         # Handle password creation separately to ensure it's hashed
