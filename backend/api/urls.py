@@ -6,6 +6,8 @@ from . import views
 # Create a router and register our viewsets with it.
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet, basename='user')
+router.register(r'grades', views.GradeViewSet, basename='grade')  # Added GradeViewSet
+router.register(r'schoolclasses', views.SchoolClassViewSet, basename='class')  # Register SchoolClassViewSet
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [

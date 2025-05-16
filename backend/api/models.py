@@ -36,3 +36,17 @@ class Grade(models.Model):
 
     class Meta:
         ordering = ['name'] # Or ['level'] if you add a level field
+
+# Model for School Classes
+class SchoolClass(models.Model):
+    name = models.CharField(max_length=100)
+    grade = models.ForeignKey(Grade, related_name='classes', on_delete=models.CASCADE)
+    # Add other fields if necessary, e.g., class teacher (ForeignKey to CustomUser with role 'class_teacher')
+    # teacher = models.ForeignKey(CustomUser, related_name='led_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': UserRole.CLASS_TEACHER})
+
+    def __str__(self):
+        return f"{self.name} ({self.grade.name})"
+
+    class Meta:
+        unique_together = ('name', 'grade')
+        ordering = ['grade__name', 'name']

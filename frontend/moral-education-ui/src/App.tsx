@@ -1,79 +1,123 @@
 import { useState, useEffect } from 'react';
-import { getUsers, getToken, logoutUser } from './services/apiService'; // Added getToken, logoutUser
-import type { User } from './services/apiService';
-import LoginComponent from './components/LoginComponent'; // Import LoginComponent
+import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import './App.css';
+import LoginComponent from './components/LoginComponent';
+import GradeManagementPage from './components/GradeManagementPage';
+import ClassManagementPage from './components/ClassManagementPage';
+import { getToken, logoutUser, getCurrentUser } from './services/apiService';
+import type { User } from './services/apiService';
+
+// A new component for the main layout after login
+const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ currentUser, onLogout }) => {
+  // currentUser is now guaranteed to be non-null here due to App component logic
+
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Moral Education Platform</h1>
+        <p>
+          Welcome, {currentUser.username} ({currentUser.role})
+        </p>
+        <nav>
+          {currentUser.role === 'system_administrator' && (
+            <>
+              <Link to="/admin/grades" style={{ marginRight: '10px' }}>Grade Management</Link>
+              <Link to="/admin/classes" style={{ marginRight: '10px' }}>Class Management</Link>
+            </>
+          )}
+          {/* Add other navigation links here based on role */}
+        </nav>
+        <button onClick={onLogout}>Logout</button> {/* onLogout is used here */}
+      </header>
+      <main>
+        <Routes>
+          <Route path="/" element={<Dashboard currentUser={currentUser} />} />
+          {currentUser.role === 'system_administrator' && (
+            <>
+              <Route path="/admin/grades" element={<GradeManagementPage />} />
+              <Route path="/admin/classes" element={<ClassManagementPage />} />
+            </>
+          )}
+          {/* Add other routes here */}
+          <Route path="*" element={<Navigate to="/" replace />} /> {/* Redirect unknown paths to dashboard */}
+        </Routes>
+      </main>
+    </div>
+  );
+};
+
+// A simple dashboard component
+const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+  // currentUser is now guaranteed to be non-null here
+  return (
+    <div>
+      <h2>Dashboard</h2>
+      <p>Welcome to your dashboard, {currentUser.username}.</p>
+      {currentUser.role !== 'system_administrator' && (
+        <p>Your role ({currentUser.role}) currently has a general dashboard view.</p>
+      )}
+      {/* More dashboard content can be added here based on roles */}
+    </div>
+  );
+};
 
 function App() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Renamed for clarity
-  const [error, setError] = useState<string | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(getToken()); // Initialize token from localStorage
+  const [token, setToken] = useState<string | null>(getToken());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState<boolean>(true);
 
   useEffect(() => {
-    const fetchUsersData = async () => {
-      if (!authToken) {
-        setIsLoading(false); // Not logged in, no need to load users
-        setUsers([]); // Clear any existing users
-        setError(null); // Clear any existing errors
-        return;
-      }
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await getUsers();
-        setUsers(data);
-      } catch (err: any) {
-        if (err.response && err.response.status === 401) {
-          setError('Authentication failed. Please log in again.');
-          setAuthToken(null); // Clear token on auth failure
-          logoutUser(); // Also clear from localStorage
-        } else {
-          setError('Failed to fetch users.');
+    const authenticateUser = async () => {
+      if (token) {
+        try {
+          const user = await getCurrentUser();
+          setCurrentUser(user);
+        } catch (error) {
+          console.error('Authentication failed:', error);
+          // Clear token and user if fetching user details fails (e.g. invalid token)
+          logoutUser(); // This also removes token from localStorage
+          setToken(null);
+          setCurrentUser(null);
         }
-        console.error(err);
-        setUsers([]); // Clear users on error
       }
-      setIsLoading(false);
+      setLoadingAuth(false);
     };
 
-    fetchUsersData();
-  }, [authToken]); // Re-run effect if authToken changes
+    if (token) { // Only attempt to authenticate if a token exists
+        authenticateUser();
+    } else {
+        setLoadingAuth(false); // No token, so not loading auth
+        setCurrentUser(null); // Ensure user is null if no token
+    }
+  }, [token]);
 
-  const handleLoginSuccess = (token: string) => {
-    setAuthToken(token);
+  const handleLoginSuccess = (newToken: string) => {
+    setToken(newToken);
+    // currentUser will be set by the useEffect hook
   };
 
   const handleLogout = () => {
     logoutUser();
-    setAuthToken(null);
-    setUsers([]); // Clear users on logout
-    setError(null); // Clear any errors on logout
+    setToken(null);
+    setCurrentUser(null);
+    // Navigation to /login will be handled by the Routes logic below
   };
 
-  if (!authToken) {
-    return <LoginComponent onLoginSuccess={handleLoginSuccess} />;
+  if (loadingAuth) {
+    return <div>Loading authentication details...</div>;
   }
 
   return (
-    <>
-      <button onClick={handleLogout} style={{ float: 'right', margin: '10px' }}>Logout</button>
-      <h1>Moral Education Platform Users</h1>
-      {isLoading && <p>Loading users...</p>}
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-      {!isLoading && !error && users.length > 0 && (
-        <ul>
-          {users.map(user => (
-            <li key={user.id}>
-              {user.username} ({user.first_name} {user.last_name}) - Role: {user.role_display}
-            </li>
-          ))}
-        </ul>
-      )}
-      {!isLoading && !error && users.length === 0 && (
-        <p>No users found or you do not have permission to view them.</p>
-      )}
-    </>
+    <Routes>
+      <Route 
+        path="/login" 
+        element={!currentUser ? <LoginComponent onLoginSuccess={handleLoginSuccess} /> : <Navigate to="/" replace />}
+      />
+      <Route 
+        path="/*" 
+        element={currentUser ? <MainLayout currentUser={currentUser} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
+      />
+    </Routes>
   );
 }
 
