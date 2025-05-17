@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem, StudentParentRelationship # Added Rule models
+from .models import CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem, StudentParentRelationship, BehaviorScore, ParentObservation, StudentSelfReport, Award # Added new models
 
 # Define SchoolClassSerializer before UserSerializer
 class SchoolClassSerializer(serializers.ModelSerializer):
@@ -161,3 +161,114 @@ class StudentParentRelationshipSerializer(serializers.ModelSerializer):
     
     def get_parent_name(self, obj):
         return f"{obj.parent.first_name} {obj.parent.last_name}".strip()
+
+# Serializers for behavior tracking and awards
+class BehaviorScoreSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    recorder_name = serializers.SerializerMethodField()
+    rule_name = serializers.ReadOnlyField(source='rule_sub_item.name')
+    dimension_name = serializers.ReadOnlyField(source='rule_sub_item.dimension.name')
+    chapter_name = serializers.ReadOnlyField(source='rule_sub_item.dimension.chapter.name')
+    score_type_display = serializers.ReadOnlyField(source='get_score_type_display')
+    school_class_name = serializers.ReadOnlyField(source='school_class.name')
+    
+    class Meta:
+        model = BehaviorScore
+        fields = [
+            'id', 'student', 'student_name', 'rule_sub_item', 'rule_name',
+            'dimension_name', 'chapter_name', 'recorded_by', 'recorder_name',
+            'school_class', 'school_class_name', 'score_type', 'score_type_display',
+            'points', 'comment', 'created_at', 'date_of_behavior'
+        ]
+    
+    def get_student_name(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}".strip()
+    
+    def get_recorder_name(self, obj):
+        return f"{obj.recorded_by.first_name} {obj.recorded_by.last_name}".strip()
+
+class ParentObservationSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    parent_name = serializers.SerializerMethodField()
+    rule_name = serializers.ReadOnlyField(source='rule_sub_item.name', default=None)
+    reviewer_name = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ParentObservation
+        fields = [
+            'id', 'student', 'student_name', 'parent', 'parent_name',
+            'rule_sub_item', 'rule_name', 'description', 'created_at',
+            'date_of_behavior', 'status', 'status_display',
+            'reviewed_by', 'reviewer_name', 'reviewed_at'
+        ]
+    
+    def get_student_name(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}".strip()
+    
+    def get_parent_name(self, obj):
+        return f"{obj.parent.first_name} {obj.parent.last_name}".strip()
+    
+    def get_reviewer_name(self, obj):
+        if obj.reviewed_by:
+            return f"{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}".strip()
+        return None
+    
+    def get_status_display(self, obj):
+        status_map = {
+            'pending': 'Pending Review',
+            'approved': 'Approved',
+            'rejected': 'Rejected'
+        }
+        return status_map.get(obj.status, obj.status)
+
+class StudentSelfReportSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    rule_name = serializers.ReadOnlyField(source='rule_sub_item.name', default=None)
+    reviewer_name = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = StudentSelfReport
+        fields = [
+            'id', 'student', 'student_name', 'rule_sub_item', 'rule_name',
+            'description', 'created_at', 'date_of_behavior', 'status',
+            'status_display', 'reviewed_by', 'reviewer_name', 'reviewed_at'
+        ]
+    
+    def get_student_name(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}".strip()
+    
+    def get_reviewer_name(self, obj):
+        if obj.reviewed_by:
+            return f"{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}".strip()
+        return None
+    
+    def get_status_display(self, obj):
+        status_map = {
+            'pending': 'Pending Review',
+            'approved': 'Approved',
+            'rejected': 'Rejected'
+        }
+        return status_map.get(obj.status, obj.status)
+
+class AwardSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    awarder_name = serializers.SerializerMethodField()
+    award_type_display = serializers.ReadOnlyField(source='get_award_type_display')
+    
+    class Meta:
+        model = Award
+        fields = [
+            'id', 'student', 'student_name', 'name', 'description',
+            'award_type', 'award_type_display', 'level', 'awarded_by',
+            'awarder_name', 'created_at', 'award_date'
+        ]
+    
+    def get_student_name(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}".strip()
+    
+    def get_awarder_name(self, obj):
+        if obj.awarded_by:
+            return f"{obj.awarded_by.first_name} {obj.awarded_by.last_name}".strip()
+        return None

@@ -21,38 +21,43 @@ const RuleChapterList: React.FC<RuleChapterListProps> = ({
       ) : (
         <table className="min-w-full bg-white border border-gray-200">
           <thead>
-            <tr className="bg-gray-100 text-left">
-              <th className="py-2 px-4 border-b">Name</th>
-              <th className="py-2 px-4 border-b">Description</th>
-              <th className="py-2 px-4 border-b">Dimensions</th>
-              <th className="py-2 px-4 border-b">Actions</th>
+            <tr className="bg-gray-100">
+              <th className="py-2 px-4 text-left border-b">Chapter Name</th>
+              <th className="py-2 px-4 text-left border-b">Description</th>
+              <th className="py-2 px-4 text-left border-b">Dimensions Count</th>
+              <th className="py-2 px-4 text-left border-b">Actions</th>
             </tr>
           </thead>
           <tbody>
             {chapters.map((chapter) => (
               <tr key={chapter.id} className="hover:bg-gray-50">
-                <td className="py-2 px-4 border-b">{chapter.name}</td>
-                <td className="py-2 px-4 border-b">{chapter.description || 'No description'}</td>
-                <td className="py-2 px-4 border-b">{chapter.dimensions?.length || 0}</td>
+                <td className="py-2 px-4 border-b font-medium">{chapter.name}</td>
                 <td className="py-2 px-4 border-b">
+                  {chapter.description ? (
+                    <span>{chapter.description}</span>
+                  ) : (
+                    <span className="text-gray-400 italic">No description</span>
+                  )}
+                </td>
+                <td className="py-2 px-4 border-b">
+                  {chapter.dimensions ? chapter.dimensions.length : 0}
+                </td>
+                <td className="py-2 px-4 border-b space-x-2">
                   <button
                     onClick={() => onViewDimensions(chapter)}
-                    className="text-blue-500 hover:text-blue-700 mr-2"
-                    title="View Dimensions"
+                    className="bg-indigo-500 hover:bg-indigo-700 text-white py-1 px-2 rounded mr-2"
                   >
-                    View Dimensions
+                    Dimensions
                   </button>
                   <button
                     onClick={() => onEditChapter(chapter)}
-                    className="text-green-500 hover:text-green-700 mr-2"
-                    title="Edit Chapter"
+                    className="bg-blue-500 hover:bg-blue-700 text-white py-1 px-2 rounded mr-2"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => onDeleteChapter(chapter.id)}
-                    className="text-red-500 hover:text-red-700"
-                    title="Delete Chapter"
+                    className="bg-red-500 hover:bg-red-700 text-white py-1 px-2 rounded"
                   >
                     Delete
                   </button>

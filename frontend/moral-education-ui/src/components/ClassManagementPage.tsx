@@ -13,146 +13,148 @@ import ClassForm from './ClassForm';
 
 const ClassManagementPage: React.FC = () => {
   const [classes, setClasses] = useState<SchoolClass[]>([]);
-  const [grades, setGrades] = useState<Grade[]>([]); // For the dropdown in ClassForm
-  const [classTeachers, setClassTeachers] = useState<User[]>([]); // For assigning teachers to classes
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [classTeachers, setClassTeachers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [pageError, setPageError] = useState<string | null>(null);
-  const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editClass, setEditClass] = useState<SchoolClass | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
 
+  // Fetch classes, grades, and teachers on component mount
   useEffect(() => {
-    fetchPageData();
-  }, []);
-  const fetchPageData = async () => {
-    try {
+    const fetchData = async () => {
       setLoading(true);
-      setPageError(null);
-      const [classesData, gradesData, usersData] = await Promise.all([
-        getSchoolClasses(),
-        getGrades(),
-        getUsers()
-      ]);
-      setClasses(classesData);
-      setGrades(gradesData);
-      
-      // Filter users to get only class teachers
-      const teachers = usersData.filter(user => 
-        user.role === 'class_teacher' || user.role === 'teaching_teacher'
-      );
-      setClassTeachers(teachers);
-    } catch (err) {
-      setPageError('Failed to fetch page data. Please try again.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const fetchClassesData = async () => {
-    try {
-      setLoading(true); // Keep page loading indicator for class list refresh
-      setPageError(null);
-      const data = await getSchoolClasses();
-      setClasses(data);
-    } catch (err) {
-      setPageError('Failed to refresh classes. Please try again.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const handleFormSubmit = async (classData: Omit<SchoolClass, 'id' | 'grade_name'>, id?: number) => {
-    try {
-      setFormError(null);
-      setLoading(true); // Indicate loading during form submission
-      if (id) {
-        await updateSchoolClass(id, classData);
-      } else {
-        await createSchoolClass(classData);
-      }
-      setShowForm(false);
-      setEditingClass(null);
-      await fetchClassesData(); // Refresh class list
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || (id ? 'update' : 'create');
-      setFormError(`Failed to ${id ? 'update' : 'create'} class: ${errorMessage}. Please try again.`);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditClass = (schoolClass: SchoolClass) => {
-    setEditingClass(schoolClass);
-    setShowForm(true);
-    setFormError(null); // Clear previous form errors
-    setPageError(null);
-  };
-
-  const handleDeleteClass = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this class?')) {
+      setError(null);
       try {
-        setPageError(null);
-        setLoading(true);
-        await deleteSchoolClass(id);
-        await fetchClassesData(); // Refresh class list
+        const [classesData, gradesData, usersData] = await Promise.all([
+          getSchoolClasses(),
+          getGrades(),
+          getUsers()
+        ]);
+
+        setClasses(classesData);
+        setGrades(gradesData);
+        // Filter users to only include teachers
+        const teachers = usersData.filter(user => 
+          user.role === 'teaching_teacher' || user.role === 'class_teacher'
+        );
+        setClassTeachers(teachers);
       } catch (err) {
-        setPageError('Failed to delete class. Please try again.');
-        console.error(err);
+        console.error('Error fetching data:', err);
+        setError('Failed to load data. Please try again.');
       } finally {
         setLoading(false);
       }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleCreateClass = () => {
+    setEditClass(null); // Ensure we're not in edit mode
+    setShowForm(true);
+  };
+
+  const handleEditClass = (classData: SchoolClass) => {
+    setEditClass(classData);
+    setShowForm(true);
+  };
+
+  const handleDeleteClass = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this class?')) {
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      await deleteSchoolClass(id);
+      // Update classes list after deletion
+      setClasses(prevClasses => prevClasses.filter(c => c.id !== id));
+    } catch (err) {
+      console.error('Error deleting class:', err);
+      setError('Failed to delete the class. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddNewClass = () => {
-    setEditingClass(null);
-    setShowForm(true);
-    setFormError(null);
-    setPageError(null);
+  const handleFormSubmit = async (
+    classData: Omit<SchoolClass, 'id' | 'grade_name' | 'class_type_display' | 'class_teachers_details'>,
+    id?: number
+  ) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (id) {
+        // Update existing class
+        const updatedClass = await updateSchoolClass(id, classData);
+        setClasses(prevClasses => 
+          prevClasses.map(c => c.id === id ? updatedClass : c)
+        );
+      } else {
+        // Create new class
+        const newClass = await createSchoolClass(classData);
+        setClasses(prevClasses => [...prevClasses, newClass]);
+      }
+
+      // Reset form state
+      setShowForm(false);
+      setEditClass(null);
+    } catch (err) {
+      console.error('Error saving class:', err);
+      setError('Failed to save the class. Please check your information and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelForm = () => {
     setShowForm(false);
-    setEditingClass(null);
-    setFormError(null);
+    setEditClass(null);
+    setError(null);
   };
 
-  if (loading && !showForm) return <p>Loading class data...</p>; // Show loading only if not showing form already
+  if (loading && !classes.length) {
+    return <div className="flex justify-center items-center h-64"><div className="text-xl">Loading...</div></div>;
+  }
 
   return (
-    <div>
-      <h2>Class Management</h2>
-      {pageError && <p style={{ color: 'red' }}>{pageError}</p>}
-      
-      {!showForm && (
-        <button onClick={handleAddNewClass} style={{ marginBottom: '1rem' }}>Add New Class</button>
-      )}      {showForm && (
-        <ClassForm
-          onSubmit={handleFormSubmit}
-          initialData={editingClass}
-          grades={grades}
-          classTeachers={classTeachers}
-          onCancel={handleCancelForm}
-          error={formError}
-        />
-      )}
-      
-      {loading && showForm && <p>Submitting form...</p>}
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Class Management</h1>
+        <button
+          onClick={handleCreateClass}
+          disabled={loading}
+          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Add New Class
+        </button>
+      </div>
 
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
 
-      {!showForm && classes.length > 0 && (
-        <ClassList
-          classes={classes}
-          onEdit={handleEditClass}
-          onDelete={handleDeleteClass}
-        />
-      )}
-      {!showForm && !loading && classes.length === 0 && (
-        <p>No classes found. Click "Add New Class" to create one.</p>
+      {showForm ? (
+        <div className="mb-8">
+          <ClassForm
+            onSubmit={handleFormSubmit}
+            initialData={editClass}
+            grades={grades}
+            classTeachers={classTeachers}
+            onCancel={handleCancelForm}
+            error={error}
+          />
+        </div>
+      ) : (
+        <div className="bg-white shadow-md rounded p-4">
+          <ClassList 
+            classes={classes}
+            onEdit={handleEditClass}
+            onDelete={handleDeleteClass}
+          />
+        </div>
       )}
     </div>
   );

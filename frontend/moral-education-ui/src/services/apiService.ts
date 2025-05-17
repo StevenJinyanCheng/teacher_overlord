@@ -103,6 +103,84 @@ export interface StudentParentRelationship {
   };
 }
 
+// Interfaces for behavior tracking, observations, and awards
+export interface BehaviorScore {
+  id: number;
+  student: number;
+  student_name?: string;
+  rule_sub_item: number;
+  rule_name?: string;
+  dimension_name?: string;
+  chapter_name?: string;
+  recorded_by?: number;
+  recorder_name?: string;
+  school_class: number;
+  school_class_name?: string;
+  score_type: 'positive' | 'negative';
+  score_type_display?: string;
+  points: number;
+  comment?: string;
+  created_at: string;
+  date_of_behavior: string;
+}
+
+export interface ParentObservation {
+  id: number;
+  student: number;
+  student_name?: string;
+  parent: number;
+  parent_name?: string;
+  rule_sub_item?: number | null;
+  rule_name?: string | null;
+  description: string;
+  created_at: string;
+  date_of_behavior: string;
+  status: 'pending' | 'approved' | 'rejected';
+  status_display?: string;
+  reviewed_by?: number | null;
+  reviewer_name?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface StudentSelfReport {
+  id: number;
+  student: number;
+  student_name?: string;
+  rule_sub_item?: number | null;
+  rule_name?: string | null;
+  description: string;
+  created_at: string;
+  date_of_behavior: string;
+  status: 'pending' | 'approved' | 'rejected';
+  status_display?: string;
+  reviewed_by?: number | null;
+  reviewer_name?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface Award {
+  id: number;
+  student: number;
+  student_name?: string;
+  name: string;
+  description?: string;
+  award_type: 'star' | 'badge' | 'certificate' | 'other';
+  award_type_display?: string;
+  level: number;
+  awarded_by?: number | null;
+  awarder_name?: string | null;
+  created_at: string;
+  award_date: string;
+}
+
+export interface ScoreSummary {
+  total_positive_points: number;
+  total_negative_points: number;
+  net_score: number;
+  total_records: number;
+  dimension_scores: Record<string, number>;
+}
+
 // Service function to get users
 export const getUsers = async (): Promise<User[]> => {
   try {
@@ -482,6 +560,217 @@ export const assignParentToStudent = async (studentId: number, parentId: number)
     return response.data;
   } catch (error) {
     console.error('Error assigning parent to student:', error);
+    throw error;
+  }
+};
+
+// API functions for behavior scoring
+export const getBehaviorScores = async (params?: any): Promise<BehaviorScore[]> => {
+  try {
+    const response = await apiClient.get('/behavior-scores/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching behavior scores:', error);
+    throw error;
+  }
+};
+
+export const getBehaviorScore = async (id: number): Promise<BehaviorScore> => {
+  try {
+    const response = await apiClient.get(`/behavior-scores/${id}/`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching behavior score with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const createBehaviorScore = async (score: Partial<BehaviorScore>): Promise<BehaviorScore> => {
+  try {
+    const response = await apiClient.post('/behavior-scores/', score);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating behavior score:', error);
+    throw error;
+  }
+};
+
+export const updateBehaviorScore = async (id: number, score: Partial<BehaviorScore>): Promise<BehaviorScore> => {
+  try {
+    const response = await apiClient.patch(`/behavior-scores/${id}/`, score);
+    return response.data;
+  } catch (error) {
+    console.error(`Error updating behavior score with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const deleteBehaviorScore = async (id: number): Promise<void> => {
+  try {
+    await apiClient.delete(`/behavior-scores/${id}/`);
+  } catch (error) {
+    console.error(`Error deleting behavior score with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const getBehaviorScoreSummary = async (params?: any): Promise<ScoreSummary> => {
+  try {
+    const response = await apiClient.get('/behavior-scores/summary/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching behavior score summary:', error);
+    throw error;
+  }
+};
+
+export const exportBehaviorScores = async (params?: any): Promise<Blob> => {
+  try {
+    const response = await apiClient.get('/behavior-scores/export/', {
+      params,
+      responseType: 'blob'
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error exporting behavior scores:', error);
+    throw error;
+  }
+};
+
+// API functions for parent observations
+export const getParentObservations = async (params?: any): Promise<ParentObservation[]> => {
+  try {
+    const response = await apiClient.get('/parent-observations/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching parent observations:', error);
+    throw error;
+  }
+};
+
+export const getParentObservation = async (id: number): Promise<ParentObservation> => {
+  try {
+    const response = await apiClient.get(`/parent-observations/${id}/`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching parent observation with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const createParentObservation = async (observation: Partial<ParentObservation>): Promise<ParentObservation> => {
+  try {
+    const response = await apiClient.post('/parent-observations/', observation);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating parent observation:', error);
+    throw error;
+  }
+};
+
+export const reviewParentObservation = async (
+  id: number, 
+  status: 'approved' | 'rejected'
+): Promise<ParentObservation> => {
+  try {
+    const response = await apiClient.post(`/parent-observations/${id}/review/`, { status });
+    return response.data;
+  } catch (error) {
+    console.error(`Error reviewing parent observation with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// API functions for student self-reports
+export const getStudentSelfReports = async (params?: any): Promise<StudentSelfReport[]> => {
+  try {
+    const response = await apiClient.get('/student-self-reports/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student self-reports:', error);
+    throw error;
+  }
+};
+
+export const getStudentSelfReport = async (id: number): Promise<StudentSelfReport> => {
+  try {
+    const response = await apiClient.get(`/student-self-reports/${id}/`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching student self-report with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const createStudentSelfReport = async (report: Partial<StudentSelfReport>): Promise<StudentSelfReport> => {
+  try {
+    const response = await apiClient.post('/student-self-reports/', report);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating student self-report:', error);
+    throw error;
+  }
+};
+
+export const reviewStudentSelfReport = async (
+  id: number, 
+  status: 'approved' | 'rejected'
+): Promise<StudentSelfReport> => {
+  try {
+    const response = await apiClient.post(`/student-self-reports/${id}/review/`, { status });
+    return response.data;
+  } catch (error) {
+    console.error(`Error reviewing student self-report with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// API functions for awards
+export const getAwards = async (params?: any): Promise<Award[]> => {
+  try {
+    const response = await apiClient.get('/awards/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching awards:', error);
+    throw error;
+  }
+};
+
+export const getAward = async (id: number): Promise<Award> => {
+  try {
+    const response = await apiClient.get(`/awards/${id}/`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching award with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const createAward = async (award: Partial<Award>): Promise<Award> => {
+  try {
+    const response = await apiClient.post('/awards/', award);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating award:', error);
+    throw error;
+  }
+};
+
+export const updateAward = async (id: number, award: Partial<Award>): Promise<Award> => {
+  try {
+    const response = await apiClient.patch(`/awards/${id}/`, award);
+    return response.data;
+  } catch (error) {
+    console.error(`Error updating award with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+export const deleteAward = async (id: number): Promise<void> => {
+  try {
+    await apiClient.delete(`/awards/${id}/`);
+  } catch (error) {
+    console.error(`Error deleting award with ID ${id}:`, error);
     throw error;
   }
 };

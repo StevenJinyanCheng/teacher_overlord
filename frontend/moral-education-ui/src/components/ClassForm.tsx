@@ -4,8 +4,8 @@ import type { SchoolClass, Grade, User } from '../services/apiService'; // Added
 interface ClassFormProps {
   onSubmit: (classData: Omit<SchoolClass, 'id' | 'grade_name' | 'class_type_display' | 'class_teachers_details'>, id?: number) => void;
   initialData?: SchoolClass | null;
-  grades: Grade[]; // To populate the grade selector
-  classTeachers?: User[]; // Available class teachers to assign
+  grades: Grade[];
+  classTeachers?: User[];
   onCancel: () => void;
   error?: string | null;
 }
@@ -13,150 +13,155 @@ interface ClassFormProps {
 const ClassForm: React.FC<ClassFormProps> = ({ onSubmit, initialData, grades, classTeachers = [], onCancel, error }) => {
   const [name, setName] = useState('');
   const [selectedGradeId, setSelectedGradeId] = useState<number | string>('');
-  const [classType, setClassType] = useState('home_class'); // Default to home class
-  const [selectedTeachers, setSelectedTeachers] = useState<number[]>([]);
-  
+  const [classType, setClassType] = useState<string>('home_class'); // Default to home_class
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<number[]>([]);
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+
+  // Load initial data if editing
   useEffect(() => {
     if (initialData) {
       setName(initialData.name);
       setSelectedGradeId(initialData.grade);
-      setClassType(initialData.class_type || 'home_class');
-      setSelectedTeachers(initialData.class_teachers || []);
+      setClassType(initialData.class_type);
+      setSelectedTeacherIds(initialData.class_teachers || []);
     } else {
-      setName('');
-      setSelectedGradeId(''); // Reset for new form
-      setClassType('home_class'); // Default for new classes
-      setSelectedTeachers([]);
+      // Reset form when creating new class
+      resetForm();
     }
   }, [initialData]);
 
-  const handleTeacherSelection = (teacherId: number) => {
-    setSelectedTeachers(prev => 
-      prev.includes(teacherId) 
-        ? prev.filter(id => id !== teacherId) // Remove if already selected
-        : [...prev, teacherId] // Add if not already selected
-    );
+  const resetForm = () => {
+    setName('');
+    setSelectedGradeId('');
+    setClassType('home_class');
+    setSelectedTeacherIds([]);
+    setFormErrors({});
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
+  const validateForm = (): boolean => {
+    let errors: { [key: string]: string } = {};
+    let isValid = true;
+
     if (!name.trim()) {
-      alert('Class name cannot be empty.');
-      return;
+      errors.name = 'Class name is required';
+      isValid = false;
     }
+
     if (!selectedGradeId) {
-      alert('Please select a grade.');
+      errors.grade = 'Grade is required';
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
       return;
     }
-    
-    const classDataToSubmit: Omit<SchoolClass, 'id' | 'grade_name' | 'class_type_display' | 'class_teachers_details'> = {
-      name: name.trim(),
+
+    const classData = {
+      name,
       grade: Number(selectedGradeId),
       class_type: classType,
-      class_teachers: selectedTeachers
+      class_teachers: selectedTeacherIds
     };
-    
-    if (initialData && initialData.id) {
-      onSubmit(classDataToSubmit, initialData.id);
-    } else {
-      onSubmit(classDataToSubmit);
-    }
+
+    onSubmit(classData, initialData?.id);
   };
+
+  const handleTeacherChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, option => Number(option.value));
+    setSelectedTeacherIds(selectedOptions);
+  };
+
   return (
-    <form onSubmit={handleSubmit}>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md">
+      <h2 className="text-xl font-semibold mb-4">
+        {initialData ? 'Edit Class' : 'Add New Class'}
+      </h2>
+      
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+      
       <div className="mb-4">
-        <label htmlFor="className" className="block text-sm font-medium text-gray-700">Class Name:</label>
+        <label htmlFor="name" className="block text-gray-700 mb-2">Class Name</label>
         <input
+          id="name"
           type="text"
-          id="className"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+          className={`w-full p-2 border ${formErrors.name ? 'border-red-500' : 'border-gray-300'} rounded`}
+          placeholder="Enter class name"
         />
+        {formErrors.name && <p className="text-red-500 text-sm mt-1">{formErrors.name}</p>}
       </div>
-      
+
       <div className="mb-4">
-        <label htmlFor="classGrade" className="block text-sm font-medium text-gray-700">Grade:</label>
+        <label htmlFor="grade" className="block text-gray-700 mb-2">Grade</label>
         <select
-          id="classGrade"
+          id="grade"
           value={selectedGradeId}
           onChange={(e) => setSelectedGradeId(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+          className={`w-full p-2 border ${formErrors.grade ? 'border-red-500' : 'border-gray-300'} rounded`}
         >
-          <option value="" disabled>Select a grade</option>
+          <option value="">Select a Grade</option>
           {grades.map((grade) => (
-            <option key={grade.id} value={grade.id}>
-              {grade.name}
-            </option>
+            <option key={grade.id} value={grade.id}>{grade.name}</option>
           ))}
         </select>
+        {formErrors.grade && <p className="text-red-500 text-sm mt-1">{formErrors.grade}</p>}
       </div>
-      
+
       <div className="mb-4">
-        <label htmlFor="classType" className="block text-sm font-medium text-gray-700">Class Type:</label>
+        <label htmlFor="class_type" className="block text-gray-700 mb-2">Class Type</label>
         <select
-          id="classType"
+          id="class_type"
           value={classType}
           onChange={(e) => setClassType(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+          className="w-full p-2 border border-gray-300 rounded"
         >
           <option value="home_class">Home Class</option>
           <option value="subject_class">Subject Class</option>
         </select>
-        <p className="mt-1 text-sm text-gray-500">
-          {classType === 'home_class' ? 
-            'Home Class: Basic organizational unit. Every student must be assigned to one Home-Class.' : 
-            'Subject Class: Specialized instructional groups (e.g., Art, Science, English Reading).'}
-        </p>
       </div>
-      
-      {classTeachers && classTeachers.length > 0 && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">Class Teachers:</label>
-          <p className="mt-1 text-sm text-gray-500 mb-2">
-            {classType === 'home_class' ? 
-              'Assign one or more class teachers to this home class.' : 
-              'Assign teaching teachers to this subject class.'}
-          </p>
-          <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2">
-            {classTeachers.map((teacher) => (
-              <div key={teacher.id} className="flex items-center mb-1">
-                <input
-                  type="checkbox"
-                  id={`teacher-${teacher.id}`}
-                  checked={selectedTeachers.includes(teacher.id)}
-                  onChange={() => handleTeacherSelection(teacher.id)}
-                  className="mr-2"
-                />
-                <label htmlFor={`teacher-${teacher.id}`}>
-                  {teacher.first_name} {teacher.last_name} ({teacher.username}) - {teacher.role_display}
-                </label>
-              </div>
-            ))}
-            {classTeachers.length === 0 && (
-              <p className="text-sm text-gray-500">No class teachers available.</p>
-            )}
-          </div>
-        </div>
-      )}
-      
-      <div className="flex justify-end mt-4">
-        <button 
-          type="submit" 
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+
+      <div className="mb-4">
+        <label htmlFor="teachers" className="block text-gray-700 mb-2">Assign Class Teachers</label>
+        <select
+          id="teachers"
+          multiple
+          value={selectedTeacherIds.map(String)}
+          onChange={handleTeacherChange}
+          className="w-full p-2 border border-gray-300 rounded"
+          size={Math.min(5, classTeachers.length || 3)}
         >
-          {initialData ? 'Update' : 'Create'} Class
-        </button>
-        <button 
-          type="button" 
-          onClick={onCancel} 
-          className="ml-3 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+          {classTeachers.map((teacher) => (
+            <option key={teacher.id} value={teacher.id}>
+              {teacher.first_name && teacher.last_name 
+                ? `${teacher.first_name} ${teacher.last_name}` 
+                : teacher.username}
+            </option>
+          ))}
+        </select>
+        <p className="text-sm text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple teachers</p>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-300 hover:bg-gray-400 text-black py-2 px-4 rounded"
         >
           Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded"
+        >
+          {initialData ? 'Update' : 'Create'} Class
         </button>
       </div>
     </form>

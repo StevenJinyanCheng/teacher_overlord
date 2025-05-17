@@ -4,10 +4,13 @@ from rest_framework.decorators import api_view, action
 from rest_framework import viewsets, permissions, status, filters # Added filters
 from rest_framework.response import Response
 from .models import (CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, 
-                    RuleSubItem, StudentParentRelationship) # Added StudentParentRelationship
+                    RuleSubItem, StudentParentRelationship, BehaviorScore,
+                    ParentObservation, StudentSelfReport, Award, UserRole, ScoreType) # Added new models
 from .serializers import (UserSerializer, GradeSerializer, SchoolClassSerializer, 
                          RuleChapterSerializer, RuleDimensionSerializer, RuleSubItemSerializer,
-                         StudentParentRelationshipSerializer) # Added StudentParentRelationshipSerializer
+                         StudentParentRelationshipSerializer, BehaviorScoreSerializer,
+                         ParentObservationSerializer, StudentSelfReportSerializer,
+                         AwardSerializer) # Added new serializers
 from .permissions import (IsSystemAdmin, IsMoralEducationSupervisor, IsPrincipal, IsDirector,
                          IsTeachingTeacher, IsClassTeacher, IsParent, IsStudent,
                          CanManageUsers, CanScoreStudents, CanConfigureRules,
@@ -15,6 +18,8 @@ from .permissions import (IsSystemAdmin, IsMoralEducationSupervisor, IsPrincipal
 import csv
 import io
 from rest_framework.parsers import MultiPartParser # Added MultiPartParser
+from django.utils import timezone
+from datetime import datetime
 
 # Create your views here.
 
@@ -459,3 +464,367 @@ class StudentParentRelationshipViewSet(viewsets.ModelViewSet):
         else:
             return Response({'message': f'Relationship between parent {parent.username} and student {student.username} already exists'}, 
                             status=status.HTTP_200_OK)
+
+# ViewSet for BehaviorScore
+class BehaviorScoreViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for behavior scores - allows teachers and administrators to record and retrieve behavior scores
+    """
+    queryset = BehaviorScore.objects.all().order_by('-created_at')
+    serializer_class = BehaviorScoreSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['student__username', 'student__first_name', 'student__last_name', 'comment']
+    ordering_fields = ['created_at', 'date_of_behavior', 'points']
+
+    def get_permissions(self):
+        """
+        Only users with CanScoreStudents permission can access behavior scores.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, CanScoreStudents]
+        else:
+            self.permission_classes = [permissions.IsAuthenticated]
+        return super().get_permissions()
+    
+    def get_queryset(self):
+        """
+        Filter queryset based on user role:
+        - System admins, principals, directors can see all scores
+        - Teaching teachers and class teachers can see scores for their students
+        - Students can see their own scores
+        - Parents can see scores for their children
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.role == UserRole.STUDENT:
+            # Students can only see their own scores
+            return queryset.filter(student=user)
+        
+        elif user.role == UserRole.PARENT:
+            # Parents can only see scores for their children
+            children_ids = user.student_relationships.values_list('student_id', flat=True)
+            return queryset.filter(student_id__in=children_ids)
+        
+        elif user.role in [UserRole.TEACHING_TEACHER, UserRole.CLASS_TEACHER]:
+            # Teachers can see scores for students in their classes
+            if user.role == UserRole.CLASS_TEACHER:
+                # Class teachers can see scores for students in their home class
+                class_ids = user.led_classes.values_list('id', flat=True)
+                return queryset.filter(student__school_class_id__in=class_ids)
+            else:
+                # Teaching teachers can see scores for students in their teaching classes
+                class_ids = user.teaching_classes.values_list('id', flat=True)
+                return queryset.filter(school_class_id__in=class_ids)
+        
+        # System admins, principals, directors, moral education supervisors can see all scores
+        return queryset
+    
+    def perform_create(self, serializer):
+        # Set the recorded_by field to the current user
+        serializer.save(recorded_by=self.request.user)
+    
+    @action(detail=False, methods=['get'], url_path='export')
+    def export_scores(self, request):
+        """Export behavior scores to CSV"""
+        if not CanExportReports().has_permission(request, self):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        response = HttpResponse(
+            content_type='text/csv',
+            headers={'Content-Disposition': 'attachment; filename="behavior_scores.csv"'},
+        )
+        
+        # Get filtered queryset
+        scores = self.get_queryset()
+        writer = csv.writer(response)
+        
+        # Write header
+        header_fields = [
+            'Student ID', 'Student Name', 'Date of Behavior', 'Chapter', 
+            'Dimension', 'Rule', 'Score Type', 'Points', 'Comment',
+            'Recorded By', 'Class'
+        ]
+        writer.writerow(header_fields)
+        
+        # Write data rows
+        for score in scores:
+            writer.writerow([
+                score.student.id,
+                f"{score.student.first_name} {score.student.last_name}".strip(),
+                score.date_of_behavior,
+                score.rule_sub_item.dimension.chapter.name,
+                score.rule_sub_item.dimension.name,
+                score.rule_sub_item.name,
+                score.get_score_type_display(),
+                score.points,
+                score.comment,
+                f"{score.recorded_by.first_name} {score.recorded_by.last_name}".strip(),
+                score.school_class.name
+            ])
+            
+        return response
+    
+    @action(detail=False, methods=['get'], url_path='summary')
+    def score_summary(self, request):
+        """
+        Generate summary statistics of behavior scores
+        """
+        queryset = self.get_queryset()
+        
+        # Get query parameters for filtering
+        student_id = request.query_params.get('student_id')
+        class_id = request.query_params.get('class_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        if class_id:
+            queryset = queryset.filter(school_class_id=class_id)
+        if start_date:
+            queryset = queryset.filter(date_of_behavior__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(date_of_behavior__lte=end_date)
+        
+        # Calculate summary statistics
+        positive_scores = queryset.filter(score_type=ScoreType.POSITIVE)
+        negative_scores = queryset.filter(score_type=ScoreType.NEGATIVE)
+        
+        total_positive_points = sum(score.points for score in positive_scores)
+        total_negative_points = sum(score.points for score in negative_scores)
+        net_score = total_positive_points - total_negative_points
+        
+        # Group scores by dimension
+        dimension_scores = {}
+        for score in queryset:
+            dimension = score.rule_sub_item.dimension.name
+            if dimension not in dimension_scores:
+                dimension_scores[dimension] = 0
+            
+            if score.score_type == ScoreType.POSITIVE:
+                dimension_scores[dimension] += score.points
+            else:
+                dimension_scores[dimension] -= score.points
+        
+        return Response({
+            'total_positive_points': total_positive_points,
+            'total_negative_points': total_negative_points,
+            'net_score': net_score,
+            'total_records': queryset.count(),
+            'dimension_scores': dimension_scores
+        })
+
+class ParentObservationViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for parent observations
+    """
+    queryset = ParentObservation.objects.all().order_by('-created_at')
+    serializer_class = ParentObservationSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['description', 'student__username', 'student__first_name', 'student__last_name']
+    ordering_fields = ['created_at', 'date_of_behavior', 'status']
+
+    def get_permissions(self):
+        """
+        Parents can create observations.
+        Teachers, and administrators can review observations.
+        """
+        if self.action == 'create':
+            self.permission_classes = [permissions.IsAuthenticated, IsParent]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, CanScoreStudents]
+        else:
+            self.permission_classes = [permissions.IsAuthenticated]
+        return super().get_permissions()
+    
+    def get_queryset(self):
+        """
+        Filter queryset based on user role:
+        - Parents see only their own submissions
+        - Teachers see submissions for their students
+        - Admins see all submissions
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.role == UserRole.PARENT:
+            # Parents can only see their own observations
+            return queryset.filter(parent=user)
+        
+        elif user.role == UserRole.STUDENT:
+            # Students can see observations submitted about them
+            return queryset.filter(student=user)
+        
+        elif user.role in [UserRole.TEACHING_TEACHER, UserRole.CLASS_TEACHER]:
+            # Teachers can see observations for their students
+            if user.role == UserRole.CLASS_TEACHER:
+                class_ids = user.led_classes.values_list('id', flat=True)
+                return queryset.filter(student__school_class_id__in=class_ids)
+            else:
+                class_ids = user.teaching_classes.values_list('id', flat=True)
+                student_ids = CustomUser.objects.filter(school_class_id__in=class_ids).values_list('id', flat=True)
+                return queryset.filter(student_id__in=student_ids)
+        
+        # Admins see all observations
+        return queryset
+    
+    def perform_create(self, serializer):
+        # Set the parent field to the current user
+        serializer.save(parent=self.request.user)
+    
+    @action(detail=True, methods=['post'], url_path='review')
+    def review_observation(self, request, pk=None):
+        """
+        Review a parent observation and update its status
+        """
+        observation = self.get_object()
+        status = request.data.get('status')
+        
+        if status not in ['approved', 'rejected']:
+            return Response({'detail': 'Status must be either "approved" or "rejected"'},
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        observation.status = status
+        observation.reviewed_by = request.user
+        observation.reviewed_at = timezone.now()
+        observation.save()
+        
+        serializer = self.get_serializer(observation)
+        return Response(serializer.data)
+
+class StudentSelfReportViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for student self-reports
+    """
+    queryset = StudentSelfReport.objects.all().order_by('-created_at')
+    serializer_class = StudentSelfReportSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['description', 'student__username', 'student__first_name', 'student__last_name']
+    ordering_fields = ['created_at', 'date_of_behavior', 'status']
+
+    def get_permissions(self):
+        """
+        Students can create self-reports.
+        Teachers and administrators can review them.
+        """
+        if self.action == 'create':
+            self.permission_classes = [permissions.IsAuthenticated, IsStudent]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, CanScoreStudents]
+        else:
+            self.permission_classes = [permissions.IsAuthenticated]
+        return super().get_permissions()
+    
+    def get_queryset(self):
+        """
+        Filter queryset based on user role:
+        - Students see only their own reports
+        - Teachers see reports for their students
+        - Admins see all reports
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.role == UserRole.STUDENT:
+            # Students can only see their own self-reports
+            return queryset.filter(student=user)
+        
+        elif user.role == UserRole.PARENT:
+            # Parents can see self-reports for their children
+            children_ids = user.student_relationships.values_list('student_id', flat=True)
+            return queryset.filter(student_id__in=children_ids)
+        
+        elif user.role in [UserRole.TEACHING_TEACHER, UserRole.CLASS_TEACHER]:
+            # Teachers can see self-reports for their students
+            if user.role == UserRole.CLASS_TEACHER:
+                class_ids = user.led_classes.values_list('id', flat=True)
+                return queryset.filter(student__school_class_id__in=class_ids)
+            else:
+                class_ids = user.teaching_classes.values_list('id', flat=True)
+                student_ids = CustomUser.objects.filter(school_class_id__in=class_ids).values_list('id', flat=True)
+                return queryset.filter(student_id__in=student_ids)
+        
+        # Admins see all self-reports
+        return queryset
+    
+    def perform_create(self, serializer):
+        # Set the student field to the current user
+        serializer.save(student=self.request.user)
+    
+    @action(detail=True, methods=['post'], url_path='review')
+    def review_self_report(self, request, pk=None):
+        """
+        Review a student self-report and update its status
+        """
+        self_report = self.get_object()
+        status_value = request.data.get('status')
+        
+        if status_value not in ['approved', 'rejected']:
+            return Response({'detail': 'Status must be either "approved" or "rejected"'},
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        self_report.status = status_value
+        self_report.reviewed_by = request.user
+        self_report.reviewed_at = timezone.now()
+        self_report.save()
+        
+        serializer = self.get_serializer(self_report)
+        return Response(serializer.data)
+
+class AwardViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for student awards and recognitions
+    """
+    queryset = Award.objects.all().order_by('-award_date', '-level')
+    serializer_class = AwardSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description', 'student__username', 'student__first_name', 'student__last_name']
+    ordering_fields = ['award_date', 'level', 'award_type']
+
+    def get_permissions(self):
+        """
+        Only teachers and administrators can create, update or delete awards.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, CanScoreStudents]
+        else:
+            self.permission_classes = [permissions.IsAuthenticated]
+        return super().get_permissions()
+    
+    def get_queryset(self):
+        """
+        Filter queryset based on user role:
+        - Students see only their own awards
+        - Parents see awards for their children
+        - Teachers see awards for their students
+        - Admins see all awards
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.role == UserRole.STUDENT:
+            # Students can only see their own awards
+            return queryset.filter(student=user)
+        
+        elif user.role == UserRole.PARENT:
+            # Parents can see awards for their children
+            children_ids = user.student_relationships.values_list('student_id', flat=True)
+            return queryset.filter(student_id__in=children_ids)
+        
+        elif user.role in [UserRole.TEACHING_TEACHER, UserRole.CLASS_TEACHER]:
+            # Teachers can see awards for their students
+            if user.role == UserRole.CLASS_TEACHER:
+                class_ids = user.led_classes.values_list('id', flat=True)
+                return queryset.filter(student__school_class_id__in=class_ids)
+            else:
+                class_ids = user.teaching_classes.values_list('id', flat=True)
+                student_ids = CustomUser.objects.filter(school_class_id__in=class_ids).values_list('id', flat=True)
+                return queryset.filter(student_id__in=student_ids)
+        
+        # Admins see all awards
+        return queryset
+    
+    def perform_create(self, serializer):
+        # Set the awarded_by field to the current user
+        serializer.save(awarded_by=self.request.user)

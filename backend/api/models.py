@@ -145,3 +145,185 @@ class RuleSubItem(models.Model):
     class Meta:
         unique_together = ('dimension', 'name')
         ordering = ['dimension', 'order', 'name']
+
+# Models for Behavior Tracking and Scoring
+
+class ScoreType(models.TextChoices):
+    POSITIVE = 'positive', 'Positive'
+    NEGATIVE = 'negative', 'Negative'
+
+class BehaviorScore(models.Model):
+    """Model to record behavior scores for students"""
+    student = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='behavior_scores',
+        limit_choices_to={'role': UserRole.STUDENT}
+    )
+    rule_sub_item = models.ForeignKey(
+        RuleSubItem, 
+        on_delete=models.CASCADE, 
+        related_name='behavior_scores'
+    )
+    recorded_by = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='recorded_scores'
+    )
+    school_class = models.ForeignKey(
+        SchoolClass,
+        on_delete=models.CASCADE,
+        related_name='behavior_scores'
+    )
+    score_type = models.CharField(
+        max_length=10,
+        choices=ScoreType.choices,
+        default=ScoreType.POSITIVE
+    )
+    points = models.IntegerField(default=1)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    date_of_behavior = models.DateField()
+
+    def __str__(self):
+        return f"{self.student.username} - {self.rule_sub_item.name} - {self.points} points"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Behavior Score"
+        verbose_name_plural = "Behavior Scores"
+
+class ParentObservation(models.Model):
+    """Model for parents to submit observations about their children"""
+    student = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='parent_observations',
+        limit_choices_to={'role': UserRole.STUDENT}
+    )
+    parent = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='submitted_observations',
+        limit_choices_to={'role': UserRole.PARENT}
+    )
+    rule_sub_item = models.ForeignKey(
+        RuleSubItem, 
+        on_delete=models.CASCADE, 
+        related_name='parent_observations',
+        null=True,
+        blank=True
+    )
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    date_of_behavior = models.DateField()
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending Review'),
+            ('approved', 'Approved'),
+            ('rejected', 'Rejected')
+        ],
+        default='pending'
+    )
+    reviewed_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_observations'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.parent.username}'s observation for {self.student.username}"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Parent Observation"
+        verbose_name_plural = "Parent Observations"
+
+class StudentSelfReport(models.Model):
+    """Model for students to self-report positive behaviors"""
+    student = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='self_reports',
+        limit_choices_to={'role': UserRole.STUDENT}
+    )
+    rule_sub_item = models.ForeignKey(
+        RuleSubItem, 
+        on_delete=models.CASCADE, 
+        related_name='student_reports',
+        null=True,
+        blank=True
+    )
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    date_of_behavior = models.DateField()
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending Review'),
+            ('approved', 'Approved'),
+            ('rejected', 'Rejected')
+        ],
+        default='pending'
+    )
+    reviewed_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_reports'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.student.username}'s self-report"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Student Self Report"
+        verbose_name_plural = "Student Self Reports"
+
+class Award(models.Model):
+    """Model for student awards and star ratings"""
+    student = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='awards',
+        limit_choices_to={'role': UserRole.STUDENT}
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    award_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('star', 'Star Rating'),
+            ('badge', 'Badge'),
+            ('certificate', 'Certificate'),
+            ('other', 'Other')
+        ],
+        default='star'
+    )
+    level = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="For star ratings: 1-5 stars; for others: achievement level"
+    )
+    awarded_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='awarded_recognitions'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    award_date = models.DateField()
+
+    def __str__(self):
+        return f"{self.student.username} - {self.name} ({self.get_award_type_display()}, Level: {self.level})"
+
+    class Meta:
+        ordering = ['-award_date', '-level']
+        verbose_name = "Award"
+        verbose_name_plural = "Awards"

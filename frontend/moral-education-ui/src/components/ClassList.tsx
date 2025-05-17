@@ -12,7 +12,8 @@ const ClassList: React.FC<ClassListProps> = ({ classes, onEdit, onDelete }) => {
     return <p>No classes found.</p>;
   }
 
-  return (    <table className="min-w-full bg-white border border-gray-200">
+  return (
+    <table className="min-w-full bg-white border border-gray-200">
       <thead>
         <tr className="bg-gray-100">
           <th className="py-2 px-4 text-left">Name</th>

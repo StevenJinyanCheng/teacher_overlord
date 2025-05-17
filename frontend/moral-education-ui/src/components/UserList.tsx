@@ -14,10 +14,10 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete }) => {
         <thead>
           <tr className="bg-gray-100 text-left">
             <th className="py-2 px-4 border-b">Username</th>
-            <th className="py-2 px-4 border-b">Email</th>
             <th className="py-2 px-4 border-b">Full Name</th>
+            <th className="py-2 px-4 border-b">Email</th>
             <th className="py-2 px-4 border-b">Role</th>
-            <th className="py-2 px-4 border-b">Class</th> {/* Added Class column */}
+            <th className="py-2 px-4 border-b">School Class</th>
             <th className="py-2 px-4 border-b">Actions</th>
           </tr>
         </thead>
@@ -25,44 +25,31 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete }) => {
           {users.map((user) => (
             <tr key={user.id} className="hover:bg-gray-50">
               <td className="py-2 px-4 border-b">{user.username}</td>
-              <td className="py-2 px-4 border-b">{user.email || 'N/A'}</td>
-              <td className="py-2 px-4 border-b">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'}</td>
               <td className="py-2 px-4 border-b">
-                {user.role_display || 
-                 (user.role === 'ADMIN' ? 'System Administrator' : 
-                  user.role === 'SUPERVISOR' ? 'Moral Education Supervisor' : 
-                  user.role === 'TEACHER' ? 'Teaching Teacher' : 
-                  user.role === 'CLASS_TEACHER' ? 'Class Teacher' : 
-                  user.role === 'STUDENT' ? 'Student' : 
-                  user.role === 'PARENT' ? 'Parent' : 
-                  user.role === 'PRINCIPAL' ? 'Principal & Director' : 
-                  user.role)}
-              </td>              <td className="py-2 px-4 border-b">
-                {user.role === 'STUDENT' ? (
-                  <>
-                    {user.school_class_details?.name || (
-                      <span className="text-red-500 text-sm font-medium">Not Assigned</span>
-                    )}
-                    {user.school_class_details?.grade_name && (
-                      <div className="text-xs text-gray-600 mt-1">
-                        Grade: {user.school_class_details.grade_name}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-gray-400">N/A</span>
-                )}
+                {user.first_name && user.last_name 
+                  ? `${user.first_name} ${user.last_name}`
+                  : <span className="text-gray-400 italic">Not provided</span>}
               </td>
-              <td className="py-2 px-4 border-b flex space-x-2">
-                <button 
+              <td className="py-2 px-4 border-b">
+                {user.email || <span className="text-gray-400 italic">Not provided</span>}
+              </td>
+              <td className="py-2 px-4 border-b">{user.role_display || user.role}</td>
+              <td className="py-2 px-4 border-b">
+                {user.school_class_details ? user.school_class_details.name : 
+                  (user.role === 'student' ? 
+                    <span className="text-yellow-600">No class assigned</span> : 
+                    <span className="text-gray-400">N/A</span>)}
+              </td>
+              <td className="py-2 px-4 border-b">
+                <button
                   onClick={() => onEdit(user)}
-                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                  className="bg-blue-500 hover:bg-blue-700 text-white py-1 px-2 rounded mr-2"
                 >
                   Edit
                 </button>
-                <button 
+                <button
                   onClick={() => onDelete(user.id)}
-                  className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                  className="bg-red-500 hover:bg-red-700 text-white py-1 px-2 rounded"
                 >
                   Delete
                 </button>

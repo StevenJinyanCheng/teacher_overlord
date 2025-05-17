@@ -2,10 +2,16 @@ import React, { useState, useEffect, useRef } from 'react'; // Added useRef
 import UserList from './UserList';
 import UserForm from './UserForm';
 import { 
-  getUsers, createUser, updateUser, deleteUser, 
-  getGrades, getSchoolClasses, exportUsers, importUsers, // Added importUsers
-  type User, type Grade, type SchoolClass, type ImportUsersResponse // Added ImportUsersResponse
-} from '../services/apiService'; // Corrected import path and added Grade, SchoolClass, getGrades, getSchoolClasses
+  getUsers, 
+  createUser, 
+  updateUser, 
+  deleteUser, 
+  exportUsers, 
+  importUsers, 
+  getGrades,
+  getSchoolClasses
+} from '../services/apiService';
+import type { User, Grade, SchoolClass, ImportUsersResponse } from '../services/apiService';
 
 const USER_ROLES = [
   { label: 'System Administrator', value: 'system_administrator' },
@@ -20,62 +26,76 @@ const USER_ROLES = [
 
 const UserManagementPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [grades, setGrades] = useState<Grade[]>([]); // Added grades state
-  const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]); // Added schoolClasses state
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [importResults, setImportResults] = useState<ImportUsersResponse | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null); // For triggering file input
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [filterRole, setFilterRole] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch initial data
   useEffect(() => {
-    fetchUsers();
-    fetchGrades(); // Fetch grades
-    fetchSchoolClasses(); // Fetch school classes
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [usersData, gradesData, classesData] = await Promise.all([
+          getUsers(),
+          getGrades(),
+          getSchoolClasses()
+        ]);
+        setUsers(usersData);
+        setGrades(gradesData);
+        setSchoolClasses(classesData);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to load user data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const fetchUsers = async () => {
+  // Handle file import
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    setLoading(true);
+    setImportError(null);
+    setImportSuccess(null);
+
     try {
-      setLoading(true);
+      const result: ImportUsersResponse = await importUsers(file);
+      setImportSuccess(
+        `Successfully imported users. Created: ${result.created}, Updated: ${result.updated}`
+      );
+      // Reload users list after import
       const usersData = await getUsers();
       setUsers(usersData);
-      setError(null);
-    } catch (err) {
-      setError('Failed to fetch users. ' + (err instanceof Error ? err.message : String(err)));
+    } catch (err: any) {
+      console.error('Error importing users:', err);
+      setImportError(err.response?.data?.message || 'Failed to import users. Please check the file format.');
     } finally {
       setLoading(false);
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
-  const fetchGrades = async () => {
+  // Handle file export
+  const handleExport = async () => {
     try {
-      // setLoading(true); // Avoid double loading indicator if fetchUsers is also running
-      const gradesData = await getGrades();
-      setGrades(gradesData);
-    } catch (err) {
-      setError(prevError => (prevError ? prevError + '\n' : '') + 'Failed to fetch grades. ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      // setLoading(false);
-    }
-  };
-
-  const fetchSchoolClasses = async () => {
-    try {
-      // setLoading(true);
-      const classesData = await getSchoolClasses();
-      setSchoolClasses(classesData);
-    } catch (err) {
-      setError(prevError => (prevError ? prevError + '\n' : '') + 'Failed to fetch school classes. ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      // setLoading(false);
-    }
-  };
-
-  const handleExportUsers = async () => {
-    try {
-      setLoading(true);
       const blob = await exportUsers();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -85,181 +105,209 @@ const UserManagementPage: React.FC = () => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setError(null);
     } catch (err) {
-      setError('Failed to export users. ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setLoading(false);
+      console.error('Error exporting users:', err);
+      setError('Failed to export users. Please try again.');
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      handleImportUsers(file);
-    }
-    // Reset file input to allow selecting the same file again if needed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+  // Filter users based on role and search query
+  const filteredUsers = users.filter(user => {
+    const matchesRole = filterRole ? user.role === filterRole : true;
+    
+    const matchesSearch = searchQuery.toLowerCase().trim() === '' ? true : (
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.first_name && user.first_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (user.last_name && user.last_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+    
+    return matchesRole && matchesSearch;
+  });
 
-  const handleImportUsers = async (file: File) => {
-    setIsImporting(true);
-    setImportResults(null);
-    setError(null);
-    try {
-      const results = await importUsers(file);
-      setImportResults(results);
-      fetchUsers(); // Refresh user list after import
-      if (results.errors && results.errors.length > 0) {
-        // setError("Import completed with some errors. See details below."); // Or display errors more prominently
-      } else if (results.message) {
-        // For messages like "CSV file was empty"
-      } else {
-        // Potentially a success message, though results speak for themselves
-      }
-    } catch (err) {
-      setError('Failed to import users. ' + (err instanceof Error ? err.message : String(err)));
-      setImportResults(null);
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleCreateOrUpdateUser = async (userData: Partial<User>) => {
-    try {
-      setLoading(true);
-      // let updatedUser; // Declared but not used, removed for now, can be re-added if logging/using the direct response
-      if (editingUser) {
-        /* updatedUser = */ await updateUser(editingUser.id, userData);
-      } else {
-        const dataToSend = { ...userData, role: userData.role || USER_ROLES[0].value } as Omit<User, 'id' | 'role_display' | 'school_class_details'>;
-        /* updatedUser = */ await createUser(dataToSend);
-      }
-      fetchUsers(); // Refresh the list
-      setShowForm(false);
-      setEditingUser(null);
-      setError(null);
-    } catch (err) {
-      setError('Failed to save user. ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditUser = (user: User) => {
-    setEditingUser(user);
+  // Create a new user
+  const handleCreateUser = () => {
+    setEditUser(null);
     setShowForm(true);
-    setError(null);
   };
 
+  // Edit an existing user
+  const handleEditUser = (user: User) => {
+    setEditUser(user);
+    setShowForm(true);
+  };
+
+  // Delete a user
   const handleDeleteUser = async (userId: number) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        setError(null);
-        await deleteUser(userId);
-        fetchUsers(); // Refresh the list
-      } catch (err) {
-        setError('Failed to delete user. Please try again.');
-        console.error(err);
-      }
+    if (!window.confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await deleteUser(userId);
+      // Update the users list
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Failed to delete user. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Handle form submission (create/update)
+  const handleFormSubmit = async (userData: Partial<User>) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      if (editUser) {
+        // Update user
+        const updatedUser = await updateUser(editUser.id, userData);
+        setUsers(prevUsers => 
+          prevUsers.map(user => user.id === editUser.id ? updatedUser : user)
+        );
+      } else {
+        // Create user
+        const newUser = await createUser(userData as Omit<User, 'id' | 'role_display' | 'school_class_details'>);
+        setUsers(prevUsers => [...prevUsers, newUser]);
+      }
+      
+      // Reset form state
+      setShowForm(false);
+      setEditUser(null);
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.detail ||
+                          'Failed to save user. Please check the form and try again.';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4">      <h1 className="text-2xl font-bold mb-4">User Management</h1>
-      <p className="mb-4 text-gray-600">
-        Add, modify, or remove user accounts. For students, you can assign them to specific grades and classes.
-        Use the bulk operations below to import or export user data.
-      </p>
-      <div className="mb-4 p-3 border-l-4 border-blue-500 bg-blue-50 text-blue-800">
-        <p className="font-medium">Student Assignment:</p>
-        <p>When adding a student, you'll be able to select a grade and then assign them to a specific class from that grade.</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">User Management</h1>
+        <div className="space-x-2">
+          <button
+            onClick={handleCreateUser}
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            disabled={loading}
+          >
+            Add User
+          </button>
+          <button
+            onClick={handleExport}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            disabled={loading}
+          >
+            Export Users
+          </button>
+          <label className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded cursor-pointer">
+            Import Users
+            <input
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleImport}
+              disabled={loading}
+              ref={fileInputRef}
+            />
+          </label>
+        </div>
       </div>
       
-      {error && <p className="text-red-500 bg-red-100 p-3 rounded mb-4">{error.split('\n').map((line, i) => <span key={i}>{line}<br/></span>)}</p>}
-      {/* Combined loading and importing message */}
-      {(loading || isImporting) && <p className="text-blue-500 bg-blue-100 p-3 rounded mb-4">Loading...</p>}
-
-      {/* Import Results Display */}
-      {importResults && (
-        <div className="mb-4 p-3 border rounded bg-gray-50">
-          <h3 className="font-semibold text-lg mb-2">Import Results:</h3>
-          {importResults.message && <p className="text-blue-600">{importResults.message}</p>}
-          {!importResults.message && (
-            <>
-              <p className="text-green-600">Users Created: {importResults.created}</p>
-              <p className="text-blue-600">Users Updated: {importResults.updated}</p>
-            </>
-          )}
-          {importResults.errors && importResults.errors.length > 0 && (
-            <div className="mt-2">
-              <p className="text-red-600 font-semibold">Errors ({importResults.errors.length}):</p>
-              <ul className="list-disc list-inside max-h-40 overflow-y-auto text-sm text-red-500">
-                {importResults.errors.map((errMsg, index) => (
-                  <li key={index}>{errMsg}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {/* Import success/error messages */}
+      {importSuccess && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {importSuccess}
         </div>
       )}
-
-      {showForm && (
-        <UserForm 
-          currentUser={editingUser}
-          onFormSubmit={handleCreateOrUpdateUser}
+      {importError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {importError}
+        </div>
+      )}
+      
+      {/* General error message */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+      
+      {showForm ? (
+        <UserForm
+          currentUser={editUser}
+          onFormSubmit={handleFormSubmit}
           onCancel={() => {
             setShowForm(false);
-            setEditingUser(null);
-            setError(null); // Clear error when cancelling form
+            setEditUser(null);
+            setError(null);
           }}
-          grades={grades} // Pass grades
-          schoolClasses={schoolClasses} // Pass schoolClasses
+          grades={grades}
+          schoolClasses={schoolClasses}
           availableRoles={USER_ROLES}
         />
-      )}
-
-      {!showForm && !loading && (
-        <button 
-          onClick={() => { setShowForm(true); setEditingUser(null); setError(null); }}
-          className="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mr-2"
-        >
-          Add New User
-        </button>
-      )}
-      {!showForm && !loading && (
-        <button
-          onClick={handleExportUsers}
-          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          disabled={loading} // Disable button while loading
-        >
-          {loading ? 'Exporting...' : 'Export Users to CSV'}
-        </button>
-      )}
-      {!showForm && !loading && (
-        <button
-          onClick={() => fileInputRef.current?.click()} // Trigger hidden file input
-          className="mb-4 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 mr-2"
-          disabled={isImporting} // Disable button while importing
-        >
-          {isImporting ? 'Importing...' : 'Import Users from CSV'}
-        </button>
-      )}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileSelect} 
-        accept=".csv"
-        style={{ display: 'none' }} 
-      />
-
-      {!showForm && !loading && users.length > 0 && (
-        <UserList
-          users={users}
-          onEdit={handleEditUser}
-          onDelete={handleDeleteUser}
-        />
+      ) : (
+        <>
+          {/* Filters */}
+          <div className="bg-white p-4 shadow rounded-lg mb-6">
+            <div className="flex flex-wrap gap-4">
+              <div className="w-full md:w-auto flex-1">
+                <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                  Search Users
+                </label>
+                <input
+                  type="text"
+                  id="search"
+                  placeholder="Search by name, username, or email"
+                  className="w-full p-2 border border-gray-300 rounded"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              <div className="w-full md:w-auto md:min-w-[200px]">
+                <label htmlFor="role-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Filter by Role
+                </label>
+                <select
+                  id="role-filter"
+                  className="w-full p-2 border border-gray-300 rounded"
+                  value={filterRole}
+                  onChange={(e) => setFilterRole(e.target.value)}
+                >
+                  <option value="">All Roles</option>
+                  {USER_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          {/* Users list */}
+          {loading && !users.length ? (
+            <div className="text-center py-8">Loading users...</div>
+          ) : filteredUsers.length > 0 ? (
+            <UserList
+              users={filteredUsers}
+              onEdit={handleEditUser}
+              onDelete={handleDeleteUser}
+            />
+          ) : (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">No users match your search criteria</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
