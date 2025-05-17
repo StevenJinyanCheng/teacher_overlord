@@ -1,16 +1,14 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
 from rest_framework.decorators import api_view, action
-from rest_framework import viewsets, permissions, status # Add status
+from rest_framework import viewsets, permissions, status, filters # Added filters
 from rest_framework.response import Response
-from .models import CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem  
-from .serializers import (
-    UserSerializer, GradeSerializer, SchoolClassSerializer,
-    RuleChapterSerializer, RuleDimensionSerializer, RuleSubItemSerializer
-)
-from .permissions import IsSystemAdmin, IsMoralEducationSupervisor  # Added import for new permission
+from .models import CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem # Added Rule models
+from .serializers import (UserSerializer, GradeSerializer, SchoolClassSerializer, 
+                         RuleChapterSerializer, RuleDimensionSerializer, RuleSubItemSerializer) # Added Rule serializers
+from .permissions import IsSystemAdmin, IsMoralEducationSupervisor # Added IsMoralEducationSupervisor
 import csv
-import io # Added io
+import io
 from rest_framework.parsers import MultiPartParser # Added MultiPartParser
 
 # Create your views here.
@@ -30,7 +28,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Instantiates and returns the list of permissions that this view requires.
         """
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'promote_demote_students']:
             self.permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
         elif self.action in ['list', 'retrieve', 'export_users', 'import_users']:
             # Allow any authenticated user to list/retrieve, or restrict to IsSystemAdmin if needed
@@ -165,12 +163,87 @@ class UserViewSet(viewsets.ModelViewSet):
                     else:
                         error_detail = "; ".join([f"{k}: {str(v[0])}" for k, v in serializer.errors.items()])
                         results['errors'].append(f"Row {row_num} (User: {username}): Create failed. {error_detail}")
-            
             except Exception as e:
                 results['errors'].append(f"Row {row_num} (User: {username}): Unexpected error. {str(e)}")
 
-        if not results['created'] and not results['updated'] and not results['errors'] and row_num == 0 :
-             return Response({'message': 'CSV file was empty or contained no data rows.'}, status=status.HTTP_200_OK)
+        if not results['created'] and not results['updated'] and not results['errors']:
+            return Response({'message': 'CSV file was empty or contained no data rows.'}, status=status.HTTP_200_OK)
+        
+        return Response(results, status=status.HTTP_200_OK)
+        
+    @action(detail=False, methods=['post'], url_path='promote-demote')
+    def promote_demote_students(self, request):
+        """
+        Promote or demote students between grades by updating their school_class.
+        
+        Expected format:
+        {
+            "source_grade_id": 1,  # Optional: Filter students by source grade
+            "source_class_id": 2,  # Optional: Filter students by source class
+            "target_grade_id": 3,  # Required for promotions/demotions across grades
+            "target_class_id": 4,  # Required: The new class to assign students to
+            "student_ids": [1, 2, 3]  # Required: List of student IDs to update
+        }
+        """
+        source_grade_id = request.data.get('source_grade_id')
+        source_class_id = request.data.get('source_class_id')
+        target_grade_id = request.data.get('target_grade_id')
+        target_class_id = request.data.get('target_class_id')
+        student_ids = request.data.get('student_ids', [])
+        
+        if not student_ids:
+            return Response({'error': 'No students specified for promotion/demotion.'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        if not target_class_id:
+            return Response({'error': 'Target class ID is required.'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            target_class = SchoolClass.objects.get(id=target_class_id)
+        except SchoolClass.DoesNotExist:
+            return Response({'error': f'Target class with ID {target_class_id} does not exist.'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        # Query for students, filtered by role and optionally by source grade/class
+        students_query = CustomUser.objects.filter(
+            id__in=student_ids, 
+            role=CustomUser.UserRole.STUDENT
+        )
+        
+        if source_class_id:
+            students_query = students_query.filter(school_class_id=source_class_id)
+        elif source_grade_id:
+            # If source_grade_id is provided but not source_class_id,
+            # filter students by classes that belong to the source grade
+            class_ids = SchoolClass.objects.filter(grade_id=source_grade_id).values_list('id', flat=True)
+            students_query = students_query.filter(school_class_id__in=class_ids)
+        
+        # Get the actual students
+        students = list(students_query)
+        
+        if not students:
+            return Response({'error': 'No matching students found with the provided criteria.'},
+                           status=status.HTTP_404_NOT_FOUND)
+        
+        # Update the students' class assignment
+        updated_count = 0
+        errors = []
+        
+        for student in students:
+            student.school_class = target_class
+            try:
+                student.save()
+                updated_count += 1
+            except Exception as e:
+                errors.append(f"Failed to update student {student.username}: {str(e)}")
+        
+        results = {
+            'success': True,
+            'updated_count': updated_count,
+            'errors': errors,
+            'message': f'{updated_count} students successfully moved to class {target_class.name} in grade {target_class.grade.name}'
+        }
         
         return Response(results, status=status.HTTP_200_OK)
 
@@ -197,29 +270,68 @@ class SchoolClassViewSet(viewsets.ModelViewSet):
     # filter_backends = [DjangoFilterBackend]
     # filterset_fields = ['grade']
 
+# ViewSet for RuleChapter
 class RuleChapterViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows rule chapters to be viewed or edited.
-    Only accessible by Moral Education Supervisors and System Administrators.
+    Accessible by Moral Education Supervisors and System Administrators.
     """
-    queryset = RuleChapter.objects.all().prefetch_related('ruledimension_set')
+    queryset = RuleChapter.objects.all().prefetch_related('ruledimension_set__rulesubitem_set')
     serializer_class = RuleChapterSerializer
     permission_classes = [permissions.IsAuthenticated, IsMoralEducationSupervisor]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['id', 'name']
+    ordering = ['id']  # Default ordering
 
+# ViewSet for RuleDimension
 class RuleDimensionViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows rule dimensions to be viewed or edited.
-    Only accessible by Moral Education Supervisors and System Administrators.
+    Accessible by Moral Education Supervisors and System Administrators.
     """
-    queryset = RuleDimension.objects.all().select_related('chapter').prefetch_related('rulesubitem_set')
+    queryset = RuleDimension.objects.all().prefetch_related('rulesubitem_set')
     serializer_class = RuleDimensionSerializer
     permission_classes = [permissions.IsAuthenticated, IsMoralEducationSupervisor]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['id', 'name', 'chapter__name']
+    ordering = ['chapter__id', 'id']  # Default ordering
+    filterset_fields = ['chapter']  # Allow filtering by chapter
 
+    def get_queryset(self):
+        """
+        Optionally restricts the returned dimensions to a given chapter,
+        by filtering against a chapter query parameter in the URL.
+        """
+        queryset = super().get_queryset()
+        chapter_id = self.request.query_params.get('chapter', None)
+        if chapter_id is not None:
+            queryset = queryset.filter(chapter_id=chapter_id)
+        return queryset
+
+# ViewSet for RuleSubItem
 class RuleSubItemViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows rule sub-items to be viewed or edited.
-    Only accessible by Moral Education Supervisors and System Administrators.
+    Accessible by Moral Education Supervisors and System Administrators.
     """
     queryset = RuleSubItem.objects.all().select_related('dimension')
     serializer_class = RuleSubItemSerializer
     permission_classes = [permissions.IsAuthenticated, IsMoralEducationSupervisor]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['id', 'name', 'dimension__name']
+    ordering = ['dimension__id', 'id']  # Default ordering
+    filterset_fields = ['dimension']  # Allow filtering by dimension
+
+    def get_queryset(self):
+        """
+        Optionally restricts the returned sub-items to a given dimension,
+        by filtering against a dimension query parameter in the URL.
+        """
+        queryset = super().get_queryset()
+        dimension_id = self.request.query_params.get('dimension', None)
+        if dimension_id is not None:
+            queryset = queryset.filter(dimension_id=dimension_id)
+        return queryset

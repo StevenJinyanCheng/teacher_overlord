@@ -8,10 +8,10 @@ router = DefaultRouter()
 router.register(r'users', views.UserViewSet, basename='user')
 router.register(r'grades', views.GradeViewSet, basename='grade')  # Added GradeViewSet
 router.register(r'schoolclasses', views.SchoolClassViewSet, basename='class')  # Register SchoolClassViewSet
-# Add Rule Management routes
-router.register(r'rule-chapters', views.RuleChapterViewSet, basename='rule-chapter')
-router.register(r'rule-dimensions', views.RuleDimensionViewSet, basename='rule-dimension')
-router.register(r'rule-sub-items', views.RuleSubItemViewSet, basename='rule-sub-item')
+# Register the new Rule Configuration ViewSets
+router.register(r'rule-chapters', views.RuleChapterViewSet)
+router.register(r'rule-dimensions', views.RuleDimensionViewSet)
+router.register(r'rule-subitems', views.RuleSubItemViewSet)
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [

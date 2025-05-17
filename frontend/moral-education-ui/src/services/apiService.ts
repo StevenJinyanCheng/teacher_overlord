@@ -154,16 +154,103 @@ export interface ImportUsersResponse {
   message?: string; // For cases like empty file
 }
 
-export const importUsers = async (file: File): Promise<ImportUsersResponse> => {
-  const formData = new FormData();
-  formData.append('file', file);
+// Rule Configuration Interfaces
+export interface RuleSubItem {
+  id: number;
+  name: string;
+  description?: string;
+  dimension: number;
+  max_score: number;
+}
 
-  const response = await apiClient.post<ImportUsersResponse>('/users/import/', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+export interface RuleDimension {
+  id: number;
+  name: string;
+  description?: string;
+  chapter: number;
+  sub_items?: RuleSubItem[];
+}
+
+export interface RuleChapter {
+  id: number;
+  name: string;
+  description?: string;
+  dimensions?: RuleDimension[];
+}
+
+// Rule Configuration API Functions
+export const getChapters = async (): Promise<RuleChapter[]> => {
+  const response = await apiClient.get<RuleChapter[]>('/rule-chapters/');
   return response.data;
+};
+
+export const getChapter = async (id: number): Promise<RuleChapter> => {
+  const response = await apiClient.get<RuleChapter>(`/rule-chapters/${id}/`);
+  return response.data;
+};
+
+export const createChapter = async (chapterData: Omit<RuleChapter, 'id' | 'dimensions'>): Promise<RuleChapter> => {
+  const response = await apiClient.post<RuleChapter>('/rule-chapters/', chapterData);
+  return response.data;
+};
+
+export const updateChapter = async (id: number, chapterData: Partial<Omit<RuleChapter, 'id' | 'dimensions'>>): Promise<RuleChapter> => {
+  const response = await apiClient.patch<RuleChapter>(`/rule-chapters/${id}/`, chapterData);
+  return response.data;
+};
+
+export const deleteChapter = async (id: number): Promise<void> => {
+  await apiClient.delete(`/rule-chapters/${id}/`);
+};
+
+export const getDimensions = async (chapterId?: number): Promise<RuleDimension[]> => {
+  const url = chapterId ? `/rule-dimensions/?chapter=${chapterId}` : '/rule-dimensions/';
+  const response = await apiClient.get<RuleDimension[]>(url);
+  return response.data;
+};
+
+export const getDimension = async (id: number): Promise<RuleDimension> => {
+  const response = await apiClient.get<RuleDimension>(`/rule-dimensions/${id}/`);
+  return response.data;
+};
+
+export const createDimension = async (dimensionData: Omit<RuleDimension, 'id' | 'sub_items'>): Promise<RuleDimension> => {
+  const response = await apiClient.post<RuleDimension>('/rule-dimensions/', dimensionData);
+  return response.data;
+};
+
+export const updateDimension = async (id: number, dimensionData: Partial<Omit<RuleDimension, 'id' | 'sub_items'>>): Promise<RuleDimension> => {
+  const response = await apiClient.patch<RuleDimension>(`/rule-dimensions/${id}/`, dimensionData);
+  return response.data;
+};
+
+export const deleteDimension = async (id: number): Promise<void> => {
+  await apiClient.delete(`/rule-dimensions/${id}/`);
+};
+
+export const getSubItems = async (dimensionId?: number): Promise<RuleSubItem[]> => {
+  const url = dimensionId ? `/rule-subitems/?dimension=${dimensionId}` : '/rule-subitems/';
+  const response = await apiClient.get<RuleSubItem[]>(url);
+  return response.data;
+};
+
+export const getSubItem = async (id: number): Promise<RuleSubItem> => {
+  const response = await apiClient.get<RuleSubItem>(`/rule-subitems/${id}/`);
+  return response.data;
+};
+
+export const createSubItem = async (subItemData: Omit<RuleSubItem, 'id'>): Promise<RuleSubItem> => {
+  const response = await apiClient.post<RuleSubItem>('/rule-subitems/', subItemData);
+  return response.data;
+};
+
+export const updateSubItem = async (id: number, subItemData: Partial<Omit<RuleSubItem, 'id'>>): Promise<RuleSubItem> => {
+  const response = await apiClient.patch<RuleSubItem>(`/rule-subitems/${id}/`, subItemData);
+  return response.data;
+};
+
+export const deleteSubItem = async (id: number): Promise<void> => {
+  await apiClient.delete(`/rule-subitems/${id}/`);
 };
 
 // Grade API functions
@@ -237,6 +324,34 @@ export const deleteSchoolClass = async (id: number): Promise<void> => {
     await apiClient.delete(`/schoolclasses/${id}/`);
   } catch (error) {
     console.error('Failed to delete school class:', error);
+    throw error;
+  }
+};
+
+// Interface for student promotion/demotion API request
+export interface PromotionRequest {
+  source_grade_id?: number; // Optional filter
+  source_class_id?: number; // Optional filter
+  target_grade_id?: number; // Used for cross-grade promotions
+  target_class_id: number; // Required: the class to move students to
+  student_ids: number[]; // Required: students to move
+}
+
+// Interface for student promotion/demotion API response
+export interface PromotionResult {
+  success: boolean;
+  updated_count: number;
+  errors: string[];
+  message: string;
+}
+
+// Function to promote or demote students
+export const promoteOrDemoteStudents = async (promotionData: PromotionRequest): Promise<PromotionResult> => {
+  try {
+    const response = await apiClient.post<PromotionResult>('/users/promote-demote/', promotionData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to promote/demote students:', error);
     throw error;
   }
 };

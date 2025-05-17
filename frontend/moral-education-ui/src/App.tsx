@@ -4,7 +4,9 @@ import './App.css';
 import LoginComponent from './components/LoginComponent';
 import GradeManagementPage from './components/GradeManagementPage';
 import ClassManagementPage from './components/ClassManagementPage';
-import UserManagementPage from './components/UserManagementPage'; // Import UserManagementPage
+import UserManagementPage from './components/UserManagementPage';
+import StudentPromotionPage from './components/StudentPromotionPage'; // Import StudentPromotionPage
+import RuleConfigurationPage from './components/RuleConfigurationPage'; // Import RuleConfigurationPage
 import { getToken, logoutUser, getCurrentUser } from './services/apiService';
 import type { User } from './services/apiService';
 
@@ -24,7 +26,13 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
             <>
               <Link to="/admin/grades" style={{ marginRight: '10px' }}>Grade Management</Link>
               <Link to="/admin/classes" style={{ marginRight: '10px' }}>Class Management</Link>
-              <Link to="/admin/users" style={{ marginRight: '10px' }}>User Management</Link> {/* Add User Management link */}
+              <Link to="/admin/users" style={{ marginRight: '10px' }}>User Management</Link>
+              <Link to="/admin/student-promotion" style={{ marginRight: '10px' }}>Student Promotion</Link>
+            </>
+          )}
+          {currentUser.role === 'moral_education_supervisor' && (
+            <>
+              <Link to="/supervisor/rule-configuration" style={{ marginRight: '10px' }}>Rule Configuration</Link>
             </>
           )}
           {/* Add other navigation links here based on role */}
@@ -38,7 +46,13 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
             <>
               <Route path="/admin/grades" element={<GradeManagementPage />} />
               <Route path="/admin/classes" element={<ClassManagementPage />} />
-              <Route path="/admin/users" element={<UserManagementPage />} /> {/* Add User Management route */}
+              <Route path="/admin/users" element={<UserManagementPage />} />
+              <Route path="/admin/student-promotion" element={<StudentPromotionPage />} />
+            </>
+          )}
+          {currentUser.role === 'moral_education_supervisor' && (
+            <>
+              <Route path="/supervisor/rule-configuration" element={<RuleConfigurationPage />} />
             </>
           )}
           {/* Add other routes here */}
