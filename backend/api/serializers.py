@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem, StudentParentRelationship, BehaviorScore, ParentObservation, StudentSelfReport, Award # Added new models
+from .models import (CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem, 
+                    StudentParentRelationship, BehaviorScore, ParentObservation, StudentSelfReport, 
+                    Award, Notification, NotificationType) # Added Notification models
 
 # Define SchoolClassSerializer before UserSerializer
 class SchoolClassSerializer(serializers.ModelSerializer):
@@ -267,8 +269,24 @@ class AwardSerializer(serializers.ModelSerializer):
     
     def get_student_name(self, obj):
         return f"{obj.student.first_name} {obj.student.last_name}".strip()
-    
-    def get_awarder_name(self, obj):
+      def get_awarder_name(self, obj):
         if obj.awarded_by:
             return f"{obj.awarded_by.first_name} {obj.awarded_by.last_name}".strip()
         return None
+
+class NotificationSerializer(serializers.ModelSerializer):
+    notification_type_display = serializers.ReadOnlyField(source='get_notification_type_display')
+    user_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'user', 'user_name', 'title', 'message', 
+            'notification_type', 'notification_type_display', 
+            'related_object_type', 'related_object_id',
+            'is_read', 'created_at'
+        ]
+        read_only_fields = ['user', 'user_name']
+    
+    def get_user_name(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}".strip()

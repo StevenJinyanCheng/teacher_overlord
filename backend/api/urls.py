@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token  # Import the view
 from . import views
+from .reports import ReportsViewSet  # Import the new ReportsViewSet
 
 # Create a router and register our viewsets with it.
 router = DefaultRouter()
@@ -19,6 +20,9 @@ router.register(r'behavior-scores', views.BehaviorScoreViewSet, basename='behavi
 router.register(r'parent-observations', views.ParentObservationViewSet, basename='parent-observation')
 router.register(r'student-self-reports', views.StudentSelfReportViewSet, basename='student-self-report')
 router.register(r'awards', views.AwardViewSet, basename='award')
+router.register(r'notifications', views.NotificationViewSet, basename='notification')
+# Register the advanced reporting ViewSet
+router.register(r'reports', ReportsViewSet, basename='reports')
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [

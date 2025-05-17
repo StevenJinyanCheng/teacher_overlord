@@ -8,6 +8,9 @@ import UserManagementPage from './components/UserManagementPage';
 import StudentPromotionPage from './components/StudentPromotionPage'; // Import StudentPromotionPage
 import RuleConfigurationPage from './components/RuleConfigurationPage'; // Import RuleConfigurationPage
 import StudentParentPage from './components/StudentParentPage'; // Import StudentParentPage
+import AwardManagementPage from './components/AwardManagementPage'; // Import AwardManagementPage
+import PrincipalDashboard from './components/PrincipalDashboard'; // Import PrincipalDashboard
+import NotificationCenter from './components/NotificationCenter'; // Import NotificationCenter
 import { getToken, logoutUser, getCurrentUser } from './services/apiService';
 import type { User } from './services/apiService';
 
@@ -19,9 +22,15 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
     <div className="App">
       <header className="App-header">
         <h1>Moral Education Platform</h1>
-        <p>
-          Welcome, {currentUser.username} ({currentUser.role})
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p>
+            Welcome, {currentUser.username} ({currentUser.role})
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <NotificationCenter />
+            <button onClick={onLogout} style={{ marginLeft: '15px' }}>Logout</button>
+          </div>
+        </div>
         <nav>
           {currentUser.role === 'system_administrator' && (
             <>
@@ -35,11 +44,16 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
           {currentUser.role === 'moral_education_supervisor' && (
             <>
               <Link to="/supervisor/rule-configuration" style={{ marginRight: '10px' }}>Rule Configuration</Link>
+              <Link to="/supervisor/awards" style={{ marginRight: '10px' }}>Award Management</Link>
+            </>
+          )}
+          {(currentUser.role === 'principal' || currentUser.role === 'director') && (
+            <>
+              <Link to="/leadership/dashboard" style={{ marginRight: '10px' }}>Analytics Dashboard</Link>
             </>
           )}
           {/* Add other navigation links here based on role */}
         </nav>
-        <button onClick={onLogout}>Logout</button> {/* onLogout is used here */}
       </header>
       <main>
         <Routes>
@@ -56,6 +70,12 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
           {currentUser.role === 'moral_education_supervisor' && (
             <>
               <Route path="/supervisor/rule-configuration" element={<RuleConfigurationPage />} />
+              <Route path="/supervisor/awards" element={<AwardManagementPage />} />
+            </>
+          )}
+          {(currentUser.role === 'principal' || currentUser.role === 'director') && (
+            <>
+              <Route path="/leadership/dashboard" element={<PrincipalDashboard />} />
             </>
           )}
           {/* Add other routes here */}

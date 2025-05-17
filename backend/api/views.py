@@ -5,12 +5,14 @@ from rest_framework import viewsets, permissions, status, filters # Added filter
 from rest_framework.response import Response
 from .models import (CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, 
                     RuleSubItem, StudentParentRelationship, BehaviorScore,
-                    ParentObservation, StudentSelfReport, Award, UserRole, ScoreType) # Added new models
+                    ParentObservation, StudentSelfReport, Award, UserRole, ScoreType,
+                    Notification, NotificationType) # Added new models
+from .notification_utils import send_notification # Import notification utility
 from .serializers import (UserSerializer, GradeSerializer, SchoolClassSerializer, 
                          RuleChapterSerializer, RuleDimensionSerializer, RuleSubItemSerializer,
                          StudentParentRelationshipSerializer, BehaviorScoreSerializer,
                          ParentObservationSerializer, StudentSelfReportSerializer,
-                         AwardSerializer) # Added new serializers
+                         AwardSerializer, NotificationSerializer) # Added new serializers
 from .permissions import (IsSystemAdmin, IsMoralEducationSupervisor, IsPrincipal, IsDirector,
                          IsTeachingTeacher, IsClassTeacher, IsParent, IsStudent,
                          CanManageUsers, CanScoreStudents, CanConfigureRules,
@@ -679,16 +681,33 @@ class ParentObservationViewSet(viewsets.ModelViewSet):
         Review a parent observation and update its status
         """
         observation = self.get_object()
-        status = request.data.get('status')
+        status_value = request.data.get('status')
         
-        if status not in ['approved', 'rejected']:
+        if status_value not in ['approved', 'rejected']:
             return Response({'detail': 'Status must be either "approved" or "rejected"'},
                           status=status.HTTP_400_BAD_REQUEST)
         
-        observation.status = status
+        observation.status = status_value
         observation.reviewed_by = request.user
         observation.reviewed_at = timezone.now()
         observation.save()
+        
+        # Send notification to the parent about the review result
+        notification_type = NotificationType.SUCCESS if status_value == 'approved' else NotificationType.WARNING
+        title = f"Observation {status_value.title()}"
+        message = f"Your observation for {observation.student.first_name} {observation.student.last_name} " \
+                  f"has been {status_value}."
+        if status_value == 'rejected':
+            message += " Please contact the teacher for more information."
+            
+        send_notification(
+            observation.parent,
+            title,
+            message,
+            notification_type=notification_type,
+            related_object_type='parent_observation',
+            related_object_id=observation.id
+        )
         
         serializer = self.get_serializer(observation)
         return Response(serializer.data)
@@ -769,6 +788,24 @@ class StudentSelfReportViewSet(viewsets.ModelViewSet):
         self_report.reviewed_at = timezone.now()
         self_report.save()
         
+        # Send notification to the student about the review result
+        notification_type = NotificationType.SUCCESS if status_value == 'approved' else NotificationType.WARNING
+        title = f"Self-Report {status_value.title()}"
+        message = f"Your self-report '{self_report.description[:30]}...' has been {status_value}."
+        if status_value == 'approved':
+            message += " Great job on your positive behavior!"
+        else:
+            message += " Please speak with your teacher for more information."
+            
+        send_notification(
+            self_report.student,
+            title,
+            message,
+            notification_type=notification_type,
+            related_object_type='student_self_report',
+            related_object_id=self_report.id
+        )
+        
         serializer = self.get_serializer(self_report)
         return Response(serializer.data)
 
@@ -827,4 +864,54 @@ class AwardViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # Set the awarded_by field to the current user
-        serializer.save(awarded_by=self.request.user)
+        award = serializer.save(awarded_by=self.request.user)
+        
+        # Send notification to the student about receiving an award
+        title = f"New {award.get_award_type_display()} Awarded!"
+        message = f"Congratulations! You have been awarded a {award.name}."
+        if award.award_type == 'star':
+            message += f" ({award.level} star{'s' if award.level > 1 else ''})"
+            
+        send_notification(
+            award.student,
+            title,
+            message,
+            notification_type=NotificationType.SUCCESS,
+            related_object_type='award',
+            related_object_id=award.id
+        )
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for user notifications
+    """
+    serializer_class = NotificationSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'message']
+    ordering_fields = ['created_at', 'is_read']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """
+        Users can only see their own notifications
+        """
+        return Notification.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        # Set the user field to the current user
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['patch'], url_path='mark-read')
+    def mark_as_read(self, request, pk=None):
+        """Mark notification as read"""
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({'status': 'notification marked as read'})
+    
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
+    def mark_all_read(self, request):
+        """Mark all notifications as read"""
+        self.get_queryset().update(is_read=True)
+        return Response({'status': 'all notifications marked as read'})

@@ -775,4 +775,10 @@ export const deleteAward = async (id: number): Promise<void> => {
   }
 };
 
+// Re-export the reporting service functions
+export * from './reportingService';
+
+// Re-export the notification service functions
+export * from './notificationService';
+
 export default apiClient;
