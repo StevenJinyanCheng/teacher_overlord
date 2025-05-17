@@ -80,10 +80,9 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
       setFilteredSchoolClasses(schoolClasses.filter(sc => sc.grade === parseInt(selectedGradeFilter, 10)));
     } else {
       setFilteredSchoolClasses(schoolClasses);
-    }
-    // Reset class selection if the new list doesn't include the currently selected class
+    }    // Reset class selection if the new list doesn't include the currently selected class
     // (unless it's the initial load for an existing student)
-    if (currentUser && currentUser.role === 'STUDENT' && currentUser.school_class && schoolClassId === currentUser.school_class) {
+    if (currentUser && currentUser.role === 'student' && currentUser.school_class && schoolClassId === currentUser.school_class) {
         // Do not reset if it's the initial load and the class matches
     } else {
         setSchoolClassId(null); 
@@ -221,19 +220,18 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
           >
             <option value="">Select Role</option>
             {availableRoles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-          <p className="mt-2 text-sm text-gray-600 bg-blue-50 p-2 rounded">
-            {role === 'STUDENT' ? 'Students need to be assigned to a grade and class below.' : 
-             role === 'TEACHER' ? 'Teaching Teacher can evaluate students per lesson.' : 
-             role === 'CLASS_TEACHER' ? 'Class Teacher can track student behavior and create reports.' : 
-             role === 'SUPERVISOR' ? 'Moral Education Supervisor can define rules and analyze reports.' : 
-             role === 'ADMIN' ? 'System Administrator has full access to all system features.' : 
-             role === 'PARENT' ? 'Parents can view their child\'s reports and submit observations.' : 
-             role === 'PRINCIPAL' ? 'Principal & Director can view all data and generate school-wide reports.' : 
+          </select>          <p className="mt-2 text-sm text-gray-600 bg-blue-50 p-2 rounded">
+            {role === 'student' ? 'Students need to be assigned to a grade and class below.' : 
+             role === 'teaching_teacher' ? 'Teaching Teacher can evaluate students per lesson.' : 
+             role === 'class_teacher' ? 'Class Teacher can track student behavior and create reports.' : 
+             role === 'moral_education_supervisor' ? 'Moral Education Supervisor can define rules and analyze reports.' : 
+             role === 'system_administrator' ? 'System Administrator has full access to all system features.' : 
+             role === 'parent' ? 'Parents can view their child\'s reports and submit observations.' : 
+             role === 'principal' || role === 'director' ? 'Principal & Director can view all data and generate school-wide reports.' : 
              'Select a role to continue.'}
           </p>
         </div>
-      </div>      {role === 'STUDENT' && (
+      </div>      {role === 'student' && (
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-300 shadow-sm">
           <h3 className="text-lg font-semibold text-blue-900 mb-3">Student Grade & Class Assignment</h3>
           <p className="text-sm text-blue-700 mb-3">Students must be assigned to a grade and class to properly appear in teacher views.</p>
@@ -294,8 +292,7 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
             </div>
           </div>
         </div>
-      )}
-      {role === 'TEACHER' && (
+      )}      {role === 'class_teacher' && (
         <div className="bg-green-50 p-4 rounded-lg border border-green-300 shadow-sm">
           <h3 className="text-lg font-semibold text-green-900 mb-3">Teaching Class Assignment</h3>
           <p className="text-sm text-green-700 mb-3">Teaching Teachers can be assigned to one or more classes.</p>
@@ -307,10 +304,12 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
               </label>
               <select 
                 id="subject-classes-filter" 
-                value={subjectClassesFilter}
-                onChange={(e) => setSubjectClassesFilter(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 multiple
+                onChange={(e) => {
+                  const selectedOptions = Array.from(e.target.selectedOptions, option => parseInt(option.value, 10));
+                  setTeachingClassIds(selectedOptions);
+                }}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 required
               >
                 {filteredSchoolClasses.length > 0 ? (

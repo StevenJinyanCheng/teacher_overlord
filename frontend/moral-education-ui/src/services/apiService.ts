@@ -86,6 +86,10 @@ export interface StudentParentRelationship {
   id: number;
   student: number;
   parent: number;
+  student_name?: string;
+  student_username?: string;
+  parent_name?: string;
+  parent_username?: string;
   student_details?: {
     id: number;
     username: string;

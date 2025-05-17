@@ -1,24 +1,28 @@
 import React, { useState, useEffect } from 'react';
+import type { User, StudentParentRelationship, SchoolClass, Grade } from '../services/apiService';
 import { 
-  User, 
-  StudentParentRelationship, 
   getStudentParentRelationships, 
-  createStudentParentRelationship, 
   deleteStudentParentRelationship,
   assignParentToStudent,
-  getUsers 
+  getUsers,
+  getSchoolClasses,
+  getGrades
 } from '../services/apiService';
 
 const StudentParentPage: React.FC = () => {
   const [relationships, setRelationships] = useState<StudentParentRelationship[]>([]);
   const [students, setStudents] = useState<User[]>([]);
   const [parents, setParents] = useState<User[]>([]);
+  const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]);
+  const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | ''>('');
   const [selectedParentId, setSelectedParentId] = useState<number | ''>('');
   const [studentFilter, setStudentFilter] = useState<string>('');
   const [parentFilter, setParentFilter] = useState<string>('');
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('');
   
   // Fetch relationships and users
   useEffect(() => {
@@ -26,14 +30,18 @@ const StudentParentPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const [relationshipsData, usersData] = await Promise.all([
+        const [relationshipsData, usersData, classesData, gradesData] = await Promise.all([
           getStudentParentRelationships(),
-          getUsers()
+          getUsers(),
+          getSchoolClasses(),
+          getGrades()
         ]);
         
         setRelationships(relationshipsData);
         setStudents(usersData.filter(user => user.role === 'student'));
         setParents(usersData.filter(user => user.role === 'parent'));
+        setSchoolClasses(classesData);
+        setGrades(gradesData);
       } catch (err) {
         setError('Failed to load data. Please try again.');
         console.error('Error fetching data:', err);
@@ -91,14 +99,37 @@ const StudentParentPage: React.FC = () => {
       setLoading(false);
     }
   };
-  
-  // Filter students based on search input
+
+  // Get student by ID
+  const getStudentById = (studentId: number) => {
+    return students.find(student => student.id === studentId);
+  };
+
+  // Get filtered students based on search, grade, and class filters
   const filteredStudents = students.filter(student => {
     const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim().toLowerCase();
-    return (
+    const textMatch = 
       student.username.toLowerCase().includes(studentFilter.toLowerCase()) ||
-      fullName.includes(studentFilter.toLowerCase())
-    );
+      fullName.includes(studentFilter.toLowerCase());
+
+    // Apply grade filter if selected
+    let gradeMatch = true;
+    if (selectedGradeFilter) {
+      // Check if student's class belongs to the selected grade
+      if (student.school_class_details) {
+        gradeMatch = student.school_class_details.grade === Number(selectedGradeFilter);
+      } else {
+        gradeMatch = false; // No class assigned, doesn't match any grade filter
+      }
+    }
+
+    // Apply class filter if selected
+    let classMatch = true;
+    if (selectedClassFilter) {
+      classMatch = student.school_class === Number(selectedClassFilter);
+    }
+
+    return textMatch && gradeMatch && classMatch;
   });
   
   // Filter parents based on search input
@@ -108,6 +139,12 @@ const StudentParentPage: React.FC = () => {
       parent.username.toLowerCase().includes(parentFilter.toLowerCase()) ||
       fullName.includes(parentFilter.toLowerCase())
     );
+  });
+
+  // Filter classes based on selected grade
+  const filteredClasses = schoolClasses.filter(cls => {
+    if (!selectedGradeFilter) return true;
+    return cls.grade === Number(selectedGradeFilter);
   });
   
   return (
@@ -125,6 +162,7 @@ const StudentParentPage: React.FC = () => {
         <div className="bg-white shadow-md rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4">Assign Parent to Student</h2>
           
+          {/* Filters for students */}
           <div className="mb-4">
             <label className="block text-gray-700 font-bold mb-2" htmlFor="student-search">
               Search Student:
@@ -137,6 +175,49 @@ const StudentParentPage: React.FC = () => {
               placeholder="Type to search students..."
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight"
             />
+          </div>
+
+          {/* Grade filter */}
+          <div className="mb-4">
+            <label className="block text-gray-700 font-bold mb-2" htmlFor="grade-filter">
+              Filter by Grade:
+            </label>
+            <select
+              id="grade-filter"
+              value={selectedGradeFilter}
+              onChange={(e) => {
+                setSelectedGradeFilter(e.target.value);
+                setSelectedClassFilter(''); // Reset class filter when grade changes
+              }}
+              className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight"
+            >
+              <option value="">All Grades</option>
+              {grades.map(grade => (
+                <option key={grade.id} value={grade.id}>
+                  {grade.name} {grade.description ? `- ${grade.description}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Class filter */}
+          <div className="mb-4">
+            <label className="block text-gray-700 font-bold mb-2" htmlFor="class-filter">
+              Filter by Class:
+            </label>
+            <select
+              id="class-filter"
+              value={selectedClassFilter}
+              onChange={(e) => setSelectedClassFilter(e.target.value)}
+              className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight"
+            >
+              <option value="">All Classes</option>
+              {filteredClasses.map(cls => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name} {cls.grade_name ? `(${cls.grade_name})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
           
           <div className="mb-6">
@@ -153,7 +234,7 @@ const StudentParentPage: React.FC = () => {
               {filteredStudents.map(student => (
                 <option key={student.id} value={student.id}>
                   {student.first_name} {student.last_name} ({student.username})
-                  {student.school_class_details ? ` - ${student.school_class_details.name}` : ''}
+                  {student.school_class_details ? ` - ${student.school_class_details.name}` : ' - No class assigned'}
                 </option>
               ))}
             </select>
@@ -215,31 +296,40 @@ const StudentParentPage: React.FC = () => {
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="py-2 px-3 text-left">Student</th>
+                    <th className="py-2 px-3 text-left">Class</th>
                     <th className="py-2 px-3 text-left">Parent</th>
                     <th className="py-2 px-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {relationships.map((rel) => (
-                    <tr key={rel.id} className="border-t">
-                      <td className="py-2 px-3">
-                        <div>{rel.student_name}</div>
-                        <div className="text-sm text-gray-500">{rel.student_username}</div>
-                      </td>
-                      <td className="py-2 px-3">
-                        <div>{rel.parent_name}</div>
-                        <div className="text-sm text-gray-500">{rel.parent_username}</div>
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        <button
-                          onClick={() => handleDeleteRelationship(rel.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {relationships.map((rel) => {
+                    const student = getStudentById(rel.student);
+                    const className = student?.school_class_details?.name || 'No class assigned';
+                    
+                    return (
+                      <tr key={rel.id} className="border-t">
+                        <td className="py-2 px-3">
+                          <div>{rel.student_name}</div>
+                          <div className="text-sm text-gray-500">{rel.student_username}</div>
+                        </td>
+                        <td className="py-2 px-3">
+                          <div>{className}</div>
+                        </td>
+                        <td className="py-2 px-3">
+                          <div>{rel.parent_name}</div>
+                          <div className="text-sm text-gray-500">{rel.parent_username}</div>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            onClick={() => handleDeleteRelationship(rel.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
