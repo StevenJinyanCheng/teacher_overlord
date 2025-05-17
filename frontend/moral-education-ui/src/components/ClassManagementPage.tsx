@@ -5,14 +5,16 @@ import {
   updateSchoolClass,
   deleteSchoolClass,
   getGrades, // Need to fetch grades for the form
+  getUsers, // Need to fetch teachers for class assignment
 } from '../services/apiService';
-import type { SchoolClass, Grade } from '../services/apiService'; // Changed to type-only imports
+import type { SchoolClass, Grade, User } from '../services/apiService'; // Changed to type-only imports
 import ClassList from './ClassList';
 import ClassForm from './ClassForm';
 
 const ClassManagementPage: React.FC = () => {
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]); // For the dropdown in ClassForm
+  const [classTeachers, setClassTeachers] = useState<User[]>([]); // For assigning teachers to classes
   const [loading, setLoading] = useState<boolean>(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -22,17 +24,23 @@ const ClassManagementPage: React.FC = () => {
   useEffect(() => {
     fetchPageData();
   }, []);
-
   const fetchPageData = async () => {
     try {
       setLoading(true);
       setPageError(null);
-      const [classesData, gradesData] = await Promise.all([
+      const [classesData, gradesData, usersData] = await Promise.all([
         getSchoolClasses(),
-        getGrades()
+        getGrades(),
+        getUsers()
       ]);
       setClasses(classesData);
       setGrades(gradesData);
+      
+      // Filter users to get only class teachers
+      const teachers = usersData.filter(user => 
+        user.role === 'class_teacher' || user.role === 'teaching_teacher'
+      );
+      setClassTeachers(teachers);
     } catch (err) {
       setPageError('Failed to fetch page data. Please try again.');
       console.error(err);
@@ -122,13 +130,12 @@ const ClassManagementPage: React.FC = () => {
       
       {!showForm && (
         <button onClick={handleAddNewClass} style={{ marginBottom: '1rem' }}>Add New Class</button>
-      )}
-
-      {showForm && (
+      )}      {showForm && (
         <ClassForm
           onSubmit={handleFormSubmit}
           initialData={editingClass}
           grades={grades}
+          classTeachers={classTeachers}
           onCancel={handleCancelForm}
           error={formError}
         />

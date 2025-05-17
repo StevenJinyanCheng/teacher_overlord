@@ -8,13 +8,14 @@ import {
 } from '../services/apiService'; // Corrected import path and added Grade, SchoolClass, getGrades, getSchoolClasses
 
 const USER_ROLES = [
-  { label: 'System Administrator', value: 'ADMIN' },
-  { label: 'Moral Education Supervisor', value: 'SUPERVISOR' },
-  { label: 'Teaching Teacher', value: 'TEACHER' },
-  { label: 'Class Teacher', value: 'CLASS_TEACHER' },
-  { label: 'Student', value: 'STUDENT' },
-  { label: 'Parent', value: 'PARENT' },
-  { label: 'Principal & Director', value: 'PRINCIPAL' },
+  { label: 'System Administrator', value: 'system_administrator' },
+  { label: 'Moral Education Supervisor', value: 'moral_education_supervisor' },
+  { label: 'Teaching Teacher', value: 'teaching_teacher' },
+  { label: 'Class Teacher', value: 'class_teacher' },
+  { label: 'Student', value: 'student' },
+  { label: 'Parent', value: 'parent' },
+  { label: 'Principal', value: 'principal' },
+  { label: 'Director', value: 'director' },
 ];
 
 const UserManagementPage: React.FC = () => {

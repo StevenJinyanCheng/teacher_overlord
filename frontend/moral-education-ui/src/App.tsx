@@ -7,6 +7,7 @@ import ClassManagementPage from './components/ClassManagementPage';
 import UserManagementPage from './components/UserManagementPage';
 import StudentPromotionPage from './components/StudentPromotionPage'; // Import StudentPromotionPage
 import RuleConfigurationPage from './components/RuleConfigurationPage'; // Import RuleConfigurationPage
+import StudentParentPage from './components/StudentParentPage'; // Import StudentParentPage
 import { getToken, logoutUser, getCurrentUser } from './services/apiService';
 import type { User } from './services/apiService';
 
@@ -28,6 +29,7 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
               <Link to="/admin/classes" style={{ marginRight: '10px' }}>Class Management</Link>
               <Link to="/admin/users" style={{ marginRight: '10px' }}>User Management</Link>
               <Link to="/admin/student-promotion" style={{ marginRight: '10px' }}>Student Promotion</Link>
+              <Link to="/admin/student-parent-relationships" style={{ marginRight: '10px' }}>Student-Parent</Link>
             </>
           )}
           {currentUser.role === 'moral_education_supervisor' && (
@@ -48,6 +50,7 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
               <Route path="/admin/classes" element={<ClassManagementPage />} />
               <Route path="/admin/users" element={<UserManagementPage />} />
               <Route path="/admin/student-promotion" element={<StudentPromotionPage />} />
+              <Route path="/admin/student-parent-relationships" element={<StudentParentPage />} />
             </>
           )}
           {currentUser.role === 'moral_education_supervisor' && (

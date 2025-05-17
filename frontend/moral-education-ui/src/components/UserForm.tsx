@@ -20,6 +20,8 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>(''); // To filter classes
   const [schoolClassId, setSchoolClassId] = useState<number | null | undefined>(undefined); // Student's assigned class ID
   const [filteredSchoolClasses, setFilteredSchoolClasses] = useState<SchoolClass[]>([]);
+  const [teachingClassIds, setTeachingClassIds] = useState<number[]>([]); // For Teaching Teachers
+  const [subjectClassesFilter, setSubjectClassesFilter] = useState<string>(''); // To filter subject classes
   useEffect(() => {
     if (currentUser) {
       setUsername(currentUser.username);
@@ -29,7 +31,8 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
       setRole(currentUser.role);
       setPassword(''); // Clear password on edit
 
-      if (currentUser.role === 'STUDENT' && currentUser.school_class) {
+      // Handle student home class assignment
+      if (currentUser.role === 'student' && currentUser.school_class) {
         const studentClass = schoolClasses.find(sc => sc.id === currentUser.school_class);
         if (studentClass) {
           setSelectedGradeFilter(studentClass.grade.toString());
@@ -45,6 +48,13 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
         setFilteredSchoolClasses(schoolClasses); // Show all classes if not student or no class
         setSchoolClassId(null);
       }
+      
+      // Handle teaching teacher class assignments
+      if (currentUser.role === 'teaching_teacher' && currentUser.teaching_classes) {
+        setTeachingClassIds(currentUser.teaching_classes);
+      } else {
+        setTeachingClassIds([]);
+      }
     } else {
       // For new users
       setUsername('');
@@ -52,14 +62,15 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
       setFirstName('');
       setLastName('');
       setPassword('');
-      // Set default role - look for STUDENT role as default for new user
-      const studentRole = availableRoles.find(r => r.value === 'STUDENT');
+      // Set default role - look for student role as default for new user
+      const studentRole = availableRoles.find(r => r.value === 'student');
       setRole(studentRole ? studentRole.value : (availableRoles.length > 0 ? availableRoles[0].value : ''));
       
       // Initialize with empty grade/class for new student
       setSelectedGradeFilter('');
       setFilteredSchoolClasses(schoolClasses);
       setSchoolClassId(null);
+      setTeachingClassIds([]);
     }
   }, [currentUser, grades, schoolClasses, availableRoles]);
 
@@ -80,22 +91,26 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
 
   }, [selectedGradeFilter, schoolClasses]); // Removed currentUser dependency here to avoid loop, handle initial in main useEffect
 
-
   const handleRoleChange = (newRole: string) => {
     setRole(newRole);
-    if (newRole !== 'STUDENT') {
+    if (newRole !== 'student') {
       setSchoolClassId(null); // Clear class if not a student
       setSelectedGradeFilter(''); // Clear grade filter
       setFilteredSchoolClasses(schoolClasses); // Show all classes in background for when role switches back
     } else {
-      // If switching to STUDENT role, show all classes initially
+      // If switching to student role, show all classes initially
       setFilteredSchoolClasses(schoolClasses);
+    }
+    
+    // Clear teaching classes if not a teaching teacher
+    if (newRole !== 'teaching_teacher') {
+      setTeachingClassIds([]);
     }
   };  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
     // Comprehensive validation for student role
-    if (role === 'STUDENT') {
+    if (role === 'student') {
       if (!selectedGradeFilter) {
         alert('Please select a grade for the student.');
         return;
@@ -113,8 +128,13 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
       first_name: firstName,
       last_name: lastName,
       role,
-      school_class: role === 'STUDENT' ? (schoolClassId === undefined ? null : schoolClassId) : null,
+      school_class: role === 'student' ? (schoolClassId === undefined ? null : schoolClassId) : null,
     };
+    
+    // Add teaching classes for teaching teachers
+    if (role === 'teaching_teacher' && teachingClassIds.length > 0) {
+      userData.teaching_classes = teachingClassIds;
+    }
     
     if (password) {
       userData.password = password;
@@ -272,6 +292,101 @@ const UserForm: React.FC<UserFormProps> = ({ currentUser, onFormSubmit, onCancel
                 <p className="mt-1 text-sm text-amber-600">You must select a grade before choosing a class</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {role === 'TEACHER' && (
+        <div className="bg-green-50 p-4 rounded-lg border border-green-300 shadow-sm">
+          <h3 className="text-lg font-semibold text-green-900 mb-3">Teaching Class Assignment</h3>
+          <p className="text-sm text-green-700 mb-3">Teaching Teachers can be assigned to one or more classes.</p>
+          
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="subject-classes-filter" className="block text-sm font-medium text-gray-700">
+                <span className="text-red-500">*</span> Subject Class Assignment:
+              </label>
+              <select 
+                id="subject-classes-filter" 
+                value={subjectClassesFilter}
+                onChange={(e) => setSubjectClassesFilter(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                multiple
+                required
+              >
+                {filteredSchoolClasses.length > 0 ? (
+                  filteredSchoolClasses.map((sClass) => (
+                    <option key={sClass.id} value={sClass.id}>
+                      {sClass.name} {grades.find(g => g.id === sClass.grade)?.name && `(Grade: ${grades.find(g => g.id === sClass.grade)?.name})`}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>No classes available for the selected grade</option>
+                )}
+              </select>
+              <p className="mt-1 text-sm text-gray-500">Hold down the Ctrl (Windows) or Command (Mac) button to select multiple classes.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {role === 'teaching_teacher' && (
+        <div className="bg-green-50 p-4 rounded-lg border border-green-300 shadow-sm">
+          <h3 className="text-lg font-semibold text-green-900 mb-3">Teaching Classes Assignment</h3>
+          <p className="text-sm text-green-700 mb-3">
+            Teaching Teachers can be assigned to multiple subject classes to record scores for students.
+          </p>
+          
+          <div className="mb-4">
+            <label htmlFor="subject-class-filter" className="block text-sm font-medium text-gray-700">
+              Filter Subject Classes:
+            </label>
+            <input 
+              type="text" 
+              id="subject-class-filter" 
+              value={subjectClassesFilter}
+              onChange={(e) => setSubjectClassesFilter(e.target.value)}
+              placeholder="Type to filter classes..."
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+          
+          <div className="max-h-60 overflow-y-auto border border-gray-300 rounded-md p-3">
+            {schoolClasses
+              .filter(cls => cls.class_type === 'subject_class')
+              .filter(cls => {
+                if (!subjectClassesFilter) return true;
+                return cls.name.toLowerCase().includes(subjectClassesFilter.toLowerCase()) ||
+                      (cls.grade_name && cls.grade_name.toLowerCase().includes(subjectClassesFilter.toLowerCase()));
+              })
+              .map(cls => (
+                <div key={cls.id} className="flex items-center mb-2 p-2 hover:bg-gray-100 rounded">
+                  <input
+                    type="checkbox"
+                    id={`class-${cls.id}`}
+                    checked={teachingClassIds.includes(cls.id)}
+                    onChange={() => {
+                      setTeachingClassIds(prev => 
+                        prev.includes(cls.id) 
+                          ? prev.filter(id => id !== cls.id) 
+                          : [...prev, cls.id]
+                      );
+                    }}
+                    className="mr-3 h-4 w-4"
+                  />
+                  <label htmlFor={`class-${cls.id}`} className="flex-grow cursor-pointer">
+                    <div className="font-medium">{cls.name}</div>
+                    <div className="text-sm text-gray-500">Grade: {cls.grade_name}</div>
+                  </label>
+                </div>
+              ))
+            }
+            {schoolClasses.filter(cls => cls.class_type === 'subject_class').length === 0 && (
+              <p className="text-center py-3 text-gray-500">No subject classes available. Please create subject classes first.</p>
+            )}
+          </div>
+          
+          <div className="mt-3 text-sm text-green-600">
+            {teachingClassIds.length} subject classes selected
           </div>
         </div>
       )}

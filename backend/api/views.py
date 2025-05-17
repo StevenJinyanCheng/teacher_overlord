@@ -3,10 +3,15 @@ from django.http import JsonResponse, HttpResponse
 from rest_framework.decorators import api_view, action
 from rest_framework import viewsets, permissions, status, filters # Added filters
 from rest_framework.response import Response
-from .models import CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, RuleSubItem # Added Rule models
+from .models import (CustomUser, Grade, SchoolClass, RuleChapter, RuleDimension, 
+                    RuleSubItem, StudentParentRelationship) # Added StudentParentRelationship
 from .serializers import (UserSerializer, GradeSerializer, SchoolClassSerializer, 
-                         RuleChapterSerializer, RuleDimensionSerializer, RuleSubItemSerializer) # Added Rule serializers
-from .permissions import IsSystemAdmin, IsMoralEducationSupervisor # Added IsMoralEducationSupervisor
+                         RuleChapterSerializer, RuleDimensionSerializer, RuleSubItemSerializer,
+                         StudentParentRelationshipSerializer) # Added StudentParentRelationshipSerializer
+from .permissions import (IsSystemAdmin, IsMoralEducationSupervisor, IsPrincipal, IsDirector,
+                         IsTeachingTeacher, IsClassTeacher, IsParent, IsStudent,
+                         CanManageUsers, CanScoreStudents, CanConfigureRules,
+                         CanExportReports, CanAdministerClasses) # Added all permission classes
 import csv
 import io
 from rest_framework.parsers import MultiPartParser # Added MultiPartParser
@@ -278,15 +283,59 @@ class GradeViewSet(viewsets.ModelViewSet):
 class SchoolClassViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows school classes to be viewed or edited.
-    Only accessible by System Administrators.
+    Create/Edit/Delete accessible by System Administrators,
+    List/Retrieve accessible by various roles based on permissions.
     """
     queryset = SchoolClass.objects.all().select_related('grade') # Optimize by selecting related grade
     serializer_class = SchoolClassSerializer
-    permission_classes = [permissions.IsAuthenticated, IsSystemAdmin] # Assuming only Sys Admin manages classes
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'grade__name']
+    ordering_fields = ['name', 'grade__name']
 
-    # Optional: Add filtering if needed, e.g., filter by grade_id
-    # filter_backends = [DjangoFilterBackend]
-    # filterset_fields = ['grade']
+    def get_permissions(self):
+        """
+        Customize permissions based on action:
+        - Create/Update/Delete: System Admins only
+        - List/Retrieve: Any authenticated user who can administer classes
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsSystemAdmin]
+        else:  # 'list', 'retrieve'
+            permission_classes = [permissions.IsAuthenticated, CanAdministerClasses]
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        """
+        Customize queryset based on user role:
+        - System admins, principals, directors see all classes
+        - Teaching teachers see their assigned teaching classes
+        - Class teachers see their assigned home classes
+        - Students see their own class and classes they're enrolled in
+        """
+        from .models import UserRole  # Import UserRole here
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # Filter by class_type if specified in query params
+        class_type = self.request.query_params.get('class_type', None)
+        if class_type:
+            queryset = queryset.filter(class_type=class_type)
+        
+        # Apply user-specific filtering
+        if user.role in [UserRole.SYSTEM_ADMINISTRATOR, UserRole.PRINCIPAL, UserRole.DIRECTOR]:
+            return queryset
+        elif user.role == UserRole.TEACHING_TEACHER:
+            return user.teaching_classes.all()
+        elif user.role == UserRole.CLASS_TEACHER:
+            return user.led_classes.all()
+        elif user.role == UserRole.STUDENT:
+            # Get student's home class and all subject classes they're enrolled in
+            # This will need to be expanded when implementing subject class enrollment
+            if user.school_class:
+                return queryset.filter(id=user.school_class.id)
+            return SchoolClass.objects.none()
+        else:
+            return SchoolClass.objects.none()
 
 # ViewSet for RuleChapter
 class RuleChapterViewSet(viewsets.ModelViewSet):
@@ -334,22 +383,79 @@ class RuleSubItemViewSet(viewsets.ModelViewSet):
     API endpoint that allows rule sub-items to be viewed or edited.
     Accessible by Moral Education Supervisors and System Administrators.
     """
-    queryset = RuleSubItem.objects.all().select_related('dimension')
+    queryset = RuleSubItem.objects.all().select_related('dimension', 'dimension__chapter') # Added select_related
     serializer_class = RuleSubItemSerializer
     permission_classes = [permissions.IsAuthenticated, IsMoralEducationSupervisor]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'description']
-    ordering_fields = ['id', 'name', 'dimension__name']
-    ordering = ['dimension__id', 'id']  # Default ordering
-    filterset_fields = ['dimension']  # Allow filtering by dimension
+    search_fields = ['name', 'description', 'dimension__name']
+    ordering_fields = ['name', 'order', 'dimension__name']
 
+# ViewSet for StudentParentRelationship
+class StudentParentRelationshipViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows student-parent relationships to be viewed or edited.
+    Accessible by System Administrators.
+    """
+    queryset = StudentParentRelationship.objects.all().select_related('student', 'parent')
+    serializer_class = StudentParentRelationshipSerializer
+    permission_classes = [permissions.IsAuthenticated, CanManageUsers]
+    
     def get_queryset(self):
         """
-        Optionally restricts the returned sub-items to a given dimension,
-        by filtering against a dimension query parameter in the URL.
+        Customize queryset based on user role:
+        - System admins, principals, directors see all relationships
+        - Parents see relationships for their own children
+        - Students see their own parent relationships
         """
+        from .models import UserRole  # Import UserRole here
         queryset = super().get_queryset()
-        dimension_id = self.request.query_params.get('dimension', None)
-        if dimension_id is not None:
-            queryset = queryset.filter(dimension_id=dimension_id)
-        return queryset
+        user = self.request.user
+        
+        if user.role in [UserRole.SYSTEM_ADMINISTRATOR, UserRole.PRINCIPAL, UserRole.DIRECTOR]:
+            return queryset
+        elif user.role == UserRole.PARENT:
+            return queryset.filter(parent=user)
+        elif user.role == UserRole.STUDENT:
+            return queryset.filter(student=user)
+        else:
+            return StudentParentRelationship.objects.none()
+    
+    @action(detail=False, methods=['post'])
+    def assign_parent(self, request):
+        """
+        Custom action to link a parent to a student
+        """
+        from .models import UserRole  # Import UserRole here
+        student_id = request.data.get('student_id')
+        parent_id = request.data.get('parent_id')
+        
+        if not student_id or not parent_id:
+            return Response({'error': 'Both student_id and parent_id are required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify the student exists and has the correct role
+        try:
+            student = CustomUser.objects.get(id=student_id, role=UserRole.STUDENT)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Student not found or not a student role'}, 
+                            status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify the parent exists and has the correct role
+        try:
+            parent = CustomUser.objects.get(id=parent_id, role=UserRole.PARENT)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Parent not found or not a parent role'}, 
+                            status=status.HTTP_404_NOT_FOUND)
+        
+        # Create the relationship if it doesn't exist
+        relationship, created = StudentParentRelationship.objects.get_or_create(
+            student=student,
+            parent=parent
+        )
+        
+        if created:
+            return Response({'success': f'Parent {parent.username} linked to student {student.username}'}, 
+                            status=status.HTTP_201_CREATED)
+        else:
+            return Response({'message': f'Relationship between parent {parent.username} and student {student.username} already exists'}, 
+                            status=status.HTTP_200_OK)

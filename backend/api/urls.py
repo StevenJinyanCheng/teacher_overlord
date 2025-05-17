@@ -12,6 +12,8 @@ router.register(r'schoolclasses', views.SchoolClassViewSet, basename='class')  #
 router.register(r'rule-chapters', views.RuleChapterViewSet)
 router.register(r'rule-dimensions', views.RuleDimensionViewSet)
 router.register(r'rule-subitems', views.RuleSubItemViewSet)
+# Register the StudentParentRelationship ViewSet
+router.register(r'student-parent-relationships', views.StudentParentRelationshipViewSet, basename='student-parent-relationship')
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [

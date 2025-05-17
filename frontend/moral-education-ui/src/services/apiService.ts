@@ -41,10 +41,14 @@ export interface User {
   email?: string;
   first_name?: string;
   last_name?: string;
-  role: string;
-  role_display?: string;
-  school_class?: number | null; // ID of the school class, can be null
-  school_class_details?: SchoolClass | null; // Full details of the school class
+  role: string; // student, parent, teaching_teacher, class_teacher, etc.
+  role_display?: string; // Human-readable display of role
+  school_class?: number | null; // ID of the home class for students, can be null
+  school_class_details?: SchoolClass | null; // Full details of the home class
+  teaching_classes?: number[]; // IDs of classes taught by teaching teachers
+  teaching_classes_details?: SchoolClass[]; // Details of classes taught by teaching teachers
+  children?: Array<{id: number, username: string, full_name: string, school_class?: {id: number, name: string}}>;  // For parents
+  parents?: Array<{id: number, username: string, full_name: string}>; // For students
   password?: string; // Only for sending, not for receiving
 }
 
@@ -65,12 +69,34 @@ export interface Grade {
   description?: string;
 }
 
-// Add SchoolClass interface
+// Interface for the SchoolClass
 export interface SchoolClass {
   id: number;
   name: string;
   grade: number; // Grade ID
   grade_name?: string; // Optional: To display grade name directly
+  class_type: string; // 'home_class' or 'subject_class'
+  class_type_display?: string; // Human-readable display of class type
+  class_teachers?: number[]; // IDs of class teachers assigned to this class
+  class_teachers_details?: Array<{id: number, username: string, full_name: string}>; // Details of assigned teachers
+}
+
+// Interface for student-parent relationships
+export interface StudentParentRelationship {
+  id: number;
+  student: number;
+  parent: number;
+  student_details?: {
+    id: number;
+    username: string;
+    full_name: string;
+    school_class?: { id: number; name: string };
+  };
+  parent_details?: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
 }
 
 // Service function to get users
@@ -205,7 +231,7 @@ export interface RuleChapter {
   id: number;
   name: string;
   description?: string;
-  dimensions?: RuleDimension[];
+  dimensions?: RuleDimension[];  // Added if nested=true in API request
 }
 
 // Rule Configuration API Functions
@@ -403,6 +429,55 @@ export const promoteOrDemoteStudents = async (promotionData: PromotionRequest): 
     return response.data;
   } catch (error) {
     console.error('Failed to promote/demote students:', error);
+    throw error;
+  }
+};
+
+// Function to get student-parent relationships
+export const getStudentParentRelationships = async (): Promise<StudentParentRelationship[]> => {
+  try {
+    const response = await apiClient.get<StudentParentRelationship[]>('/student-parent-relationships/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student-parent relationships:', error);
+    throw error;
+  }
+};
+
+// Function to create a student-parent relationship
+export const createStudentParentRelationship = async (studentId: number, parentId: number): Promise<StudentParentRelationship> => {
+  try {
+    const response = await apiClient.post<StudentParentRelationship>('/student-parent-relationships/', {
+      student: studentId,
+      parent: parentId
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating student-parent relationship:', error);
+    throw error;
+  }
+};
+
+// Function to delete a student-parent relationship
+export const deleteStudentParentRelationship = async (id: number): Promise<void> => {
+  try {
+    await apiClient.delete(`/student-parent-relationships/${id}/`);
+  } catch (error) {
+    console.error('Error deleting student-parent relationship:', error);
+    throw error;
+  }
+};
+
+// Function to assign a parent to a student using the custom endpoint
+export const assignParentToStudent = async (studentId: number, parentId: number): Promise<any> => {
+  try {
+    const response = await apiClient.post('/student-parent-relationships/assign_parent/', {
+      student_id: studentId,
+      parent_id: parentId
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error assigning parent to student:', error);
     throw error;
   }
 };

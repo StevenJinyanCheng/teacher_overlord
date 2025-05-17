@@ -7,8 +7,13 @@ class UserRole(models.TextChoices):
     TEACHING_TEACHER = 'teaching_teacher', 'Teaching Teacher'
     CLASS_TEACHER = 'class_teacher', 'Class Teacher'
     MORAL_EDUCATION_SUPERVISOR = 'moral_education_supervisor', 'Moral Education Supervisor'
-    PRINCIPAL_DIRECTOR = 'principal_director', 'Principal & Director'
+    PRINCIPAL = 'principal', 'Principal'
+    DIRECTOR = 'director', 'Director'
     SYSTEM_ADMINISTRATOR = 'system_administrator', 'System Administrator'
+
+class ClassType(models.TextChoices):
+    HOME_CLASS = 'home_class', 'Home Class'
+    SUBJECT_CLASS = 'subject_class', 'Subject Class'
 
 class CustomUser(AbstractUser):
     role = models.CharField(
@@ -16,13 +21,21 @@ class CustomUser(AbstractUser):
         choices=UserRole.choices,
         default=UserRole.STUDENT, # Or another sensible default
     )
+    # For students - their home class assignment
     school_class = models.ForeignKey(
         'SchoolClass',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='students',
-        help_text="The class a student belongs to, if applicable."
+        help_text="The home class a student belongs to, if applicable."
+    )
+    # For teaching teachers - classes they teach (Subject-Classes)
+    teaching_classes = models.ManyToManyField(
+        'SchoolClass',
+        related_name='teaching_teachers',
+        blank=True,
+        help_text="Subject classes taught by this teaching teacher."
     )
     # Add any other fields common to all users, if any
     # e.g., profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
@@ -50,17 +63,50 @@ class Grade(models.Model):
 class SchoolClass(models.Model):
     name = models.CharField(max_length=100)
     grade = models.ForeignKey(Grade, related_name='classes', on_delete=models.CASCADE)
-    # Add other fields if necessary, e.g., class teacher (ForeignKey to CustomUser with role 'class_teacher')
-    # teacher = models.ForeignKey(CustomUser, related_name='led_classes', on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'role': UserRole.CLASS_TEACHER})
+    class_type = models.CharField(
+        max_length=20,
+        choices=ClassType.choices,
+        default=ClassType.HOME_CLASS
+    )
+    # Add relationship for class teachers - m2m since multiple teachers can be assigned to a class
+    class_teachers = models.ManyToManyField(
+        'CustomUser',
+        related_name='led_classes',
+        blank=True,
+        limit_choices_to={'role': UserRole.CLASS_TEACHER}
+    )
 
     def __str__(self):
-        return f"{self.name} ({self.grade.name})"
+        return f"{self.name} ({self.grade.name}) - {self.get_class_type_display()}"
 
     class Meta:
         unique_together = ('name', 'grade')
         ordering = ['grade__name', 'name']
 
 # Moral Education Rule Configuration Models
+
+# Model to represent the relationship between students and their parents
+class StudentParentRelationship(models.Model):
+    student = models.ForeignKey(
+        CustomUser,
+        related_name='parent_relationships',
+        on_delete=models.CASCADE,
+        limit_choices_to={'role': UserRole.STUDENT}
+    )
+    parent = models.ForeignKey(
+        CustomUser,
+        related_name='student_relationships',
+        on_delete=models.CASCADE,
+        limit_choices_to={'role': UserRole.PARENT}
+    )
+
+    class Meta:
+        unique_together = ('student', 'parent')
+        verbose_name = "Student-Parent Relationship"
+        verbose_name_plural = "Student-Parent Relationships"
+
+    def __str__(self):
+        return f"{self.student.username} - {self.parent.username}"
 
 class RuleChapter(models.Model):
     name = models.CharField(max_length=200, unique=True)
