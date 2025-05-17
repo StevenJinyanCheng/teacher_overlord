@@ -4,6 +4,7 @@ import './App.css';
 import LoginComponent from './components/LoginComponent';
 import GradeManagementPage from './components/GradeManagementPage';
 import ClassManagementPage from './components/ClassManagementPage';
+import UserManagementPage from './components/UserManagementPage'; // Import UserManagementPage
 import { getToken, logoutUser, getCurrentUser } from './services/apiService';
 import type { User } from './services/apiService';
 
@@ -23,6 +24,7 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
             <>
               <Link to="/admin/grades" style={{ marginRight: '10px' }}>Grade Management</Link>
               <Link to="/admin/classes" style={{ marginRight: '10px' }}>Class Management</Link>
+              <Link to="/admin/users" style={{ marginRight: '10px' }}>User Management</Link> {/* Add User Management link */}
             </>
           )}
           {/* Add other navigation links here based on role */}
@@ -36,6 +38,7 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
             <>
               <Route path="/admin/grades" element={<GradeManagementPage />} />
               <Route path="/admin/classes" element={<ClassManagementPage />} />
+              <Route path="/admin/users" element={<UserManagementPage />} /> {/* Add User Management route */}
             </>
           )}
           {/* Add other routes here */}

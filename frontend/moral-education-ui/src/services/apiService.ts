@@ -26,15 +26,14 @@ apiClient.interceptors.request.use(
 export interface User {
   id: number;
   username: string;
-  email: string;
+  email?: string;
   first_name?: string;
   last_name?: string;
-  role: string; 
+  role: string;
   role_display?: string;
-  is_active?: boolean;
-  is_staff?: boolean;
-  date_joined?: string;
-  password?: string; // For create/update, should not be returned by GET
+  school_class?: number | null; // ID of the school class, can be null
+  school_class_details?: SchoolClass | null; // Full details of the school class
+  password?: string; // Only for sending, not for receiving
 }
 
 export interface LoginCredentials {
@@ -51,14 +50,15 @@ interface TokenResponse {
 export interface Grade {
   id: number;
   name: string;
+  description?: string;
 }
 
 // Add SchoolClass interface
 export interface SchoolClass {
   id: number;
   name: string;
-  grade_id: number; // For creating/updating
-  grade_name: string; // For display
+  grade: number; // Grade ID
+  grade_name?: string; // Optional: To display grade name directly
 }
 
 // Service function to get users
@@ -113,7 +113,7 @@ export const getCurrentUser = async (): Promise<User> => {
 };
 
 // Service function to create a user
-export const createUser = async (userData: Omit<User, 'id' | 'role_display' | 'date_joined'>): Promise<User> => {
+export const createUser = async (userData: Omit<User, 'id' | 'role_display' | 'school_class_details'>): Promise<User> => {
   try {
     const response = await apiClient.post<User>('/users/', userData);
     return response.data;
@@ -124,10 +124,10 @@ export const createUser = async (userData: Omit<User, 'id' | 'role_display' | 'd
 };
 
 // Service function to update a user
-export const updateUser = async (userId: number, userData: Partial<Omit<User, 'id' | 'role_display' | 'date_joined' | 'username'>>): Promise<User> => {
+export const updateUser = async (id: number, userData: Partial<Omit<User, 'id' | 'role_display' | 'school_class_details'>>): Promise<User> => {
   try {
     // Username is typically not updatable or handled differently, so excluding it from Partial update payload
-    const response = await apiClient.put<User>(`/users/${userId}/`, userData);
+    const response = await apiClient.put<User>(`/users/${id}/`, userData);
     return response.data;
   } catch (error) {
     console.error('Error updating user:', error);
@@ -136,13 +136,34 @@ export const updateUser = async (userId: number, userData: Partial<Omit<User, 'i
 };
 
 // Service function to delete a user
-export const deleteUser = async (userId: number): Promise<void> => {
-  try {
-    await apiClient.delete(`/users/${userId}/`);
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    throw error;
-  }
+export const deleteUser = async (id: number): Promise<void> => {
+  await apiClient.delete(`/users/${id}/`);
+};
+
+export const exportUsers = async (): Promise<Blob> => {
+  const response = await apiClient.get('/users/export/', {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+export interface ImportUsersResponse {
+  created: number;
+  updated: number;
+  errors: string[];
+  message?: string; // For cases like empty file
+}
+
+export const importUsers = async (file: File): Promise<ImportUsersResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiClient.post<ImportUsersResponse>('/users/import/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
 };
 
 // Grade API functions
@@ -187,13 +208,8 @@ export const deleteGrade = async (gradeId: number): Promise<void> => {
 
 // SchoolClass API functions
 export const getSchoolClasses = async (): Promise<SchoolClass[]> => {
-  try {
-    const response = await apiClient.get<SchoolClass[]>('/schoolclasses/');
-    return response.data;
-  } catch (error) {
-    console.error('Failed to fetch school classes:', error);
-    throw error;
-  }
+  const response = await apiClient.get<SchoolClass[]>('/classes/');
+  return response.data;
 };
 
 export const createSchoolClass = async (classData: Omit<SchoolClass, 'id' | 'grade_name'>): Promise<SchoolClass> => {
@@ -206,9 +222,9 @@ export const createSchoolClass = async (classData: Omit<SchoolClass, 'id' | 'gra
   }
 };
 
-export const updateSchoolClass = async (classId: number, classData: Partial<Omit<SchoolClass, 'id' | 'grade_name'>>): Promise<SchoolClass> => {
+export const updateSchoolClass = async (id: number, classData: Partial<Omit<SchoolClass, 'id' | 'grade_name'>>): Promise<SchoolClass> => {
   try {
-    const response = await apiClient.put<SchoolClass>(`/schoolclasses/${classId}/`, classData);
+    const response = await apiClient.put<SchoolClass>(`/schoolclasses/${id}/`, classData);
     return response.data;
   } catch (error) {
     console.error('Failed to update school class:', error);
@@ -216,9 +232,9 @@ export const updateSchoolClass = async (classId: number, classData: Partial<Omit
   }
 };
 
-export const deleteSchoolClass = async (classId: number): Promise<void> => {
+export const deleteSchoolClass = async (id: number): Promise<void> => {
   try {
-    await apiClient.delete(`/schoolclasses/${classId}/`);
+    await apiClient.delete(`/schoolclasses/${id}/`);
   } catch (error) {
     console.error('Failed to delete school class:', error);
     throw error;

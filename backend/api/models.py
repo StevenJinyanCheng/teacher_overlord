@@ -16,6 +16,14 @@ class CustomUser(AbstractUser):
         choices=UserRole.choices,
         default=UserRole.STUDENT, # Or another sensible default
     )
+    school_class = models.ForeignKey(
+        'SchoolClass',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='students',
+        help_text="The class a student belongs to, if applicable."
+    )
     # Add any other fields common to all users, if any
     # e.g., profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
 
@@ -50,3 +58,43 @@ class SchoolClass(models.Model):
     class Meta:
         unique_together = ('name', 'grade')
         ordering = ['grade__name', 'name']
+
+# Moral Education Rule Configuration Models
+
+class RuleChapter(models.Model):
+    name = models.CharField(max_length=200, unique=True)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0, help_text="Order in which chapters are displayed")
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['order', 'name']
+
+class RuleDimension(models.Model):
+    chapter = models.ForeignKey(RuleChapter, related_name='dimensions', on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, help_text="A core dimension, e.g., 'Respect and Courtesy'")
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0, help_text="Order of dimension within the chapter")
+
+    def __str__(self):
+        return f"{self.chapter.name} - {self.name}"
+
+    class Meta:
+        unique_together = ('chapter', 'name')
+        ordering = ['chapter', 'order', 'name']
+
+class RuleSubItem(models.Model):
+    dimension = models.ForeignKey(RuleDimension, related_name='sub_items', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255, help_text="Specific rule or behavior, e.g., 'Greets teachers and elders'")
+    description = models.TextField(blank=True)
+    # points = models.IntegerField(default=0, help_text="Points associated with this rule, if applicable")
+    order = models.PositiveIntegerField(default=0, help_text="Order of sub-item within the dimension")
+
+    def __str__(self):
+        return f"{self.dimension.name} - {self.name}"
+
+    class Meta:
+        unique_together = ('dimension', 'name')
+        ordering = ['dimension', 'order', 'name']

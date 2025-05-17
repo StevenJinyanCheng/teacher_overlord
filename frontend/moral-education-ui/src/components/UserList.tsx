@@ -9,37 +9,40 @@ interface UserListProps {
 
 const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete }) => {
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Username</th>
-          <th>Email</th>
-          <th>First Name</th>
-          <th>Last Name</th>
-          <th>Role</th>
-          <th>Active</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {users.map((user) => (
-          <tr key={user.id}>
-            <td>{user.id}</td>
-            <td>{user.username}</td>
-            <td>{user.email}</td>
-            <td>{user.first_name || '-'}</td>
-            <td>{user.last_name || '-'}</td>
-            <td>{user.role_display || user.role}</td>
-            <td>{user.is_active ? 'Yes' : 'No'}</td>
-            <td>
-              <button onClick={() => onEdit(user)}>Edit</button>
-              <button onClick={() => onDelete(user.id)}>Delete</button>
-            </td>
+    <div className="overflow-x-auto">
+      <table className="min-w-full bg-white border border-gray-200">
+        <thead>
+          <tr className="bg-gray-100 text-left">
+            <th className="py-2 px-4 border-b">Username</th>
+            <th className="py-2 px-4 border-b">Email</th>
+            <th className="py-2 px-4 border-b">Full Name</th>
+            <th className="py-2 px-4 border-b">Role</th>
+            <th className="py-2 px-4 border-b">Class</th> {/* Added Class column */}
+            <th className="py-2 px-4 border-b">Actions</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id} className="hover:bg-gray-50">
+              <td className="py-2 px-4 border-b">{user.username}</td>
+              <td className="py-2 px-4 border-b">{user.email || 'N/A'}</td>
+              <td className="py-2 px-4 border-b">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'}</td>
+              <td className="py-2 px-4 border-b">{user.role_display || user.role}</td>
+              <td className="py-2 px-4 border-b">
+                {user.role === 'STUDENT' ? (user.school_class_details?.name || 'Not Assigned') : 'N/A'}
+                {user.role === 'STUDENT' && user.school_class_details?.grade_name && 
+                  <span className="text-xs text-gray-500 ml-1">({user.school_class_details.grade_name})</span>
+                }
+              </td> {/* Display class name and grade if student */}
+              <td className="py-2 px-4 border-b">
+                <button onClick={() => onEdit(user)}>Edit</button>
+                <button onClick={() => onDelete(user.id)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
