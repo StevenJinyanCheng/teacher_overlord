@@ -255,6 +255,24 @@ class GradeViewSet(viewsets.ModelViewSet):
     queryset = Grade.objects.all()
     serializer_class = GradeSerializer
     permission_classes = [permissions.IsAuthenticated, IsSystemAdmin] # Updated permissions
+    
+    def create(self, request, *args, **kwargs):
+        """
+        Override create method to add more detailed error handling
+        """
+        print(f"Creating grade with data: {request.data}")
+        print(f"User authenticated: {request.user.is_authenticated}")
+        print(f"User role: {request.user.role}")
+        print(f"Is system admin: {request.user.role == 'system_administrator'}")
+        
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            print(f"Grade creation error: {str(e)}")
+            return Response(
+                {"detail": f"Grade creation failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 # ViewSet for SchoolClass
 class SchoolClassViewSet(viewsets.ModelViewSet):

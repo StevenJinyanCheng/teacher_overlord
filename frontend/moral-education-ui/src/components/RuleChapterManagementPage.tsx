@@ -58,10 +58,13 @@ const RuleChapterManagementPage: React.FC<RuleChapterManagementPageProps> = ({ o
     setEditingChapter(chapter);
     setShowForm(true);
   };
-  
-  const handleViewDimensions = (chapter: RuleChapter) => {
+    const handleViewDimensions = (chapter: RuleChapter) => {
+    // Call the parent component handler if provided
     if (onViewDimensions) {
       onViewDimensions(chapter);
+    } else {
+      // Fallback if no handler provided
+      alert(`View dimensions for ${chapter.name} (ID: ${chapter.id}). This will be implemented in the next step.`);
     }
   };
 
@@ -77,17 +80,8 @@ const RuleChapterManagementPage: React.FC<RuleChapterManagementPageProps> = ({ o
       fetchChapters(); // Refresh the list
       setError(null);
     } catch (err) {
-      setError('Failed to delete chapter. ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
+      setError('Failed to delete chapter. ' + (err instanceof Error ? err.message : String(err)));    } finally {
       setLoading(false);
-    }
-  };  const handleViewDimensions = (chapter: RuleChapter) => {
-    // Call the parent component handler if provided
-    if (onViewDimensions) {
-      onViewDimensions(chapter);
-    } else {
-      // Fallback if no handler provided
-      alert(`View dimensions for ${chapter.name} (ID: ${chapter.id}). This will be implemented in the next step.`);
     }
   };
   

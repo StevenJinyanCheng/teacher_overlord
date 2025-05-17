@@ -36,6 +36,7 @@ class CustomUser(AbstractUser):
 
 class Grade(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
     # Add other fields if necessary, e.g., level for ordering
     # level = models.IntegerField(unique=True, null=True, blank=True)
 

@@ -9,15 +9,17 @@ interface GradeFormProps {
 
 const GradeForm: React.FC<GradeFormProps> = ({ onSubmit, initialData, onCancel }) => {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
     if (initialData) {
       setName(initialData.name);
+      setDescription(initialData.description || '');
     } else {
       setName('');
+      setDescription('');
     }
   }, [initialData]);
-
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
@@ -25,12 +27,11 @@ const GradeForm: React.FC<GradeFormProps> = ({ onSubmit, initialData, onCancel }
       return;
     }
     if (initialData && initialData.id) {
-      onSubmit({ name }, initialData.id);
+      onSubmit({ name, description }, initialData.id);
     } else {
-      onSubmit({ name });
+      onSubmit({ name, description });
     }
   };
-
   return (
     <form onSubmit={handleSubmit}>
       <div>
@@ -41,6 +42,14 @@ const GradeForm: React.FC<GradeFormProps> = ({ onSubmit, initialData, onCancel }
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+        />
+      </div>
+      <div>
+        <label htmlFor="gradeDescription">Description (Optional):</label>
+        <textarea
+          id="gradeDescription"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
         />
       </div>
       <button type="submit">{initialData ? 'Update' : 'Create'} Grade</button>

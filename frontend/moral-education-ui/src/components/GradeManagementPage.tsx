@@ -10,9 +10,37 @@ const GradeManagementPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
-
   useEffect(() => {
-    fetchGradesData();
+    // Check authentication status and user role first
+    const checkAuthAndFetchData = async () => {
+      const token = localStorage.getItem('authToken');
+      console.log('Auth token present:', Boolean(token));
+      
+      if (!token) {
+        setError('You need to be logged in to access this page.');
+        return;
+      }
+      
+      try {
+        // Optional: Get current user to verify role
+        const apiClient = await import('../services/apiService');
+        const currentUser = await apiClient.getCurrentUser();
+        console.log('Current user:', currentUser);
+        console.log('User role:', currentUser.role);
+        
+        if (currentUser.role !== 'system_administrator') {
+          setError('You need to be a System Administrator to manage grades.');
+          return;
+        }
+        
+        fetchGradesData();
+      } catch (err) {
+        setError('Authentication error. Please log in again.');
+        console.error('Authentication check failed:', err);
+      }
+    };
+    
+    checkAuthAndFetchData();
   }, []);
 
   const fetchGradesData = async () => {
@@ -28,13 +56,13 @@ const GradeManagementPage: React.FC = () => {
       setLoading(false);
     }
   };
-
   const handleFormSubmit = async (gradeData: Omit<Grade, 'id'> | Partial<Omit<Grade, 'id'>>, id?: number) => {
     try {
       setError(null);
       if (id) {
         await updateGrade(id, gradeData as Partial<Omit<Grade, 'id'>>);
       } else {
+        console.log('Creating grade with data:', gradeData);
         await createGrade(gradeData as Omit<Grade, 'id'>);
       }
       setShowForm(false);
@@ -42,8 +70,9 @@ const GradeManagementPage: React.FC = () => {
       fetchGradesData(); // Refresh list
     } catch (err) {
       const action = id ? 'update' : 'create';
-      setError(`Failed to ${action} grade. Please try again.`);
-      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Failed to ${action} grade. Error: ${errorMessage}`);
+      console.error('Grade operation failed:', err);
     }
   };
 

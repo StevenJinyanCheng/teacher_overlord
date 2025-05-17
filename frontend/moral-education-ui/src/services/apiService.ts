@@ -12,12 +12,24 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
+    console.log('Request interceptor - Token present:', Boolean(token));
+    
     if (token) {
+      // Ensure headers object exists
+      config.headers = config.headers || {};
       config.headers.Authorization = `Token ${token}`;
+      console.log('Setting Authorization header:', `Token ${token.substring(0, 5)}...`);
+    } else {
+      console.warn('No auth token found in localStorage');
     }
+    
+    console.log('Request URL:', config.url);
+    console.log('Request method:', config.method);
+    
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -284,10 +296,26 @@ export const getGrades = async (): Promise<Grade[]> => {
 
 export const createGrade = async (gradeData: Omit<Grade, 'id'>): Promise<Grade> => {
   try {
+    console.log('API request to create grade:', gradeData);
+    console.log('Auth token present:', Boolean(localStorage.getItem('authToken')));
     const response = await apiClient.post<Grade>('/grades/', gradeData);
+    console.log('Grade create response:', response);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to create grade:', error);
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('Error request:', error.request);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 };
