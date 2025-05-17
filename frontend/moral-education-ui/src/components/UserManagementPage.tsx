@@ -8,9 +8,13 @@ import {
 } from '../services/apiService'; // Corrected import path and added Grade, SchoolClass, getGrades, getSchoolClasses
 
 const USER_ROLES = [
-  { label: 'Admin', value: 'admin' },
-  { label: 'Teacher', value: 'teacher' },
-  { label: 'Student', value: 'student' },
+  { label: 'System Administrator', value: 'ADMIN' },
+  { label: 'Moral Education Supervisor', value: 'SUPERVISOR' },
+  { label: 'Teaching Teacher', value: 'TEACHER' },
+  { label: 'Class Teacher', value: 'CLASS_TEACHER' },
+  { label: 'Student', value: 'STUDENT' },
+  { label: 'Parent', value: 'PARENT' },
+  { label: 'Principal & Director', value: 'PRINCIPAL' },
 ];
 
 const UserManagementPage: React.FC = () => {
@@ -161,14 +165,20 @@ const UserManagementPage: React.FC = () => {
       }
     }
   };
-
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">User Management</h1>
+    <div className="container mx-auto p-4">      <h1 className="text-2xl font-bold mb-4">User Management</h1>
+      <p className="mb-4 text-gray-600">
+        Add, modify, or remove user accounts. For students, you can assign them to specific grades and classes.
+        Use the bulk operations below to import or export user data.
+      </p>
+      <div className="mb-4 p-3 border-l-4 border-blue-500 bg-blue-50 text-blue-800">
+        <p className="font-medium">Student Assignment:</p>
+        <p>When adding a student, you'll be able to select a grade and then assign them to a specific class from that grade.</p>
+      </div>
       
       {error && <p className="text-red-500 bg-red-100 p-3 rounded mb-4">{error.split('\n').map((line, i) => <span key={i}>{line}<br/></span>)}</p>}
       {/* Combined loading and importing message */}
-      {(loading || isImporting) && <p>Loading...</p>}
+      {(loading || isImporting) && <p className="text-blue-500 bg-blue-100 p-3 rounded mb-4">Loading...</p>}
 
       {/* Import Results Display */}
       {importResults && (

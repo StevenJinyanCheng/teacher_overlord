@@ -1,0 +1,3 @@
+id,username,email,first_name,last_name,role,role_display,school_class,school_class_name,school_class_grade_name,password
+1,Steven,steven.pi.cheng@outlook.com,,,system_administrator,System Administrator,,,,
+2,test,,,,teaching_teacher,Teaching Teacher,,,,
