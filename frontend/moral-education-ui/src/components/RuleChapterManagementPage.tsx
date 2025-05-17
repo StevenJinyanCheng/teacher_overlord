@@ -9,13 +9,15 @@ import {
   type RuleChapter 
 } from '../services/apiService';
 
-const RuleChapterManagementPage: React.FC = () => {
+interface RuleChapterManagementPageProps {
+  onViewDimensions?: (chapter: RuleChapter) => void;
+}
+
+const RuleChapterManagementPage: React.FC<RuleChapterManagementPageProps> = ({ onViewDimensions }) => {
   const [chapters, setChapters] = useState<RuleChapter[]>([]);
-  const [editingChapter, setEditingChapter] = useState<RuleChapter | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [editingChapter, setEditingChapter] = useState<RuleChapter | null>(null);  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchChapters();
@@ -52,10 +54,15 @@ const RuleChapterManagementPage: React.FC = () => {
       setLoading(false);
     }
   };
-
   const handleEditChapter = (chapter: RuleChapter) => {
     setEditingChapter(chapter);
     setShowForm(true);
+  };
+  
+  const handleViewDimensions = (chapter: RuleChapter) => {
+    if (onViewDimensions) {
+      onViewDimensions(chapter);
+    }
   };
 
   const handleDeleteChapter = async (id: number) => {
@@ -74,14 +81,14 @@ const RuleChapterManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleViewDimensions = (chapter: RuleChapter) => {
-    // For now, just store the selected chapter ID
-    // Later, we'll use this to navigate to the dimensions page
-    setSelectedChapterId(chapter.id);
-    // In a real app with routing: navigate(`/dimensions/${chapter.id}`)
-    alert(`View dimensions for ${chapter.name} (ID: ${chapter.id}). This will be implemented in the next step.`);
+  };  const handleViewDimensions = (chapter: RuleChapter) => {
+    // Call the parent component handler if provided
+    if (onViewDimensions) {
+      onViewDimensions(chapter);
+    } else {
+      // Fallback if no handler provided
+      alert(`View dimensions for ${chapter.name} (ID: ${chapter.id}). This will be implemented in the next step.`);
+    }
   };
   
   return (

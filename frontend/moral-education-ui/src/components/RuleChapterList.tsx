@@ -1,5 +1,5 @@
 import React from 'react';
-import { RuleChapter } from '../services/apiService';
+import type { RuleChapter } from '../services/apiService';
 
 interface RuleChapterListProps {
   chapters: RuleChapter[];

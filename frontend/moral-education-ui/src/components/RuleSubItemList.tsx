@@ -1,5 +1,5 @@
 import React from 'react';
-import { RuleSubItem } from '../services/apiService';
+import type { RuleSubItem } from '../services/apiService';
 
 interface RuleSubItemListProps {
   subItems: RuleSubItem[];

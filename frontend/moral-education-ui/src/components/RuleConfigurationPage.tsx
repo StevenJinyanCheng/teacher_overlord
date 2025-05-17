@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import RuleChapterManagementPage from './RuleChapterManagementPage';
 import RuleDimensionManagementPage from './RuleDimensionManagementPage';
 import RuleSubItemManagementPage from './RuleSubItemManagementPage';
-import { RuleChapter, RuleDimension } from '../services/apiService';
+import type { RuleChapter, RuleDimension } from '../services/apiService';
 
 // Navigation levels
-enum RuleLevel {
-  CHAPTER = 'chapter',
-  DIMENSION = 'dimension',
-  SUBITEM = 'subitem'
-}
+const RuleLevel = {
+  CHAPTER: 'chapter' as const,
+  DIMENSION: 'dimension' as const,
+  SUBITEM: 'subitem' as const
+} as const;
+
+type RuleLevel = typeof RuleLevel[keyof typeof RuleLevel];
 
 const RuleConfigurationPage: React.FC = () => {
   const [currentLevel, setCurrentLevel] = useState<RuleLevel>(RuleLevel.CHAPTER);
@@ -48,9 +50,10 @@ const RuleConfigurationPage: React.FC = () => {
   const handleViewDimensions = (chapter: RuleChapter) => {
     navigateToLevel(RuleLevel.DIMENSION, chapter);
   };
-
   const handleViewSubItems = (dimension: RuleDimension) => {
-    navigateToLevel(RuleLevel.SUBITEM, selectedChapter, dimension);
+    // Convert null to undefined to match the expected type
+    const chapter = selectedChapter === null ? undefined : selectedChapter;
+    navigateToLevel(RuleLevel.SUBITEM, chapter, dimension);
   };
 
   const handleBackToChapters = () => {

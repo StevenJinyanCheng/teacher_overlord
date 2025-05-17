@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RuleDimension, RuleChapter } from '../services/apiService';
+import type { RuleDimension, RuleChapter } from '../services/apiService';
 
 interface RuleDimensionFormProps {
   currentDimension: RuleDimension | null;

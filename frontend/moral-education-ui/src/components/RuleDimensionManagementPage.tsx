@@ -15,20 +15,20 @@ import {
 interface RuleDimensionManagementPageProps {
   chapterId?: number; // Optional: If provided, only show dimensions for this chapter
   onBack?: () => void; // Optional: Function to navigate back to chapters
+  onViewSubItems?: (dimension: RuleDimension) => void; // Optional: Function to view sub-items of a dimension
 }
 
 const RuleDimensionManagementPage: React.FC<RuleDimensionManagementPageProps> = ({
   chapterId,
-  onBack
+  onBack,
+  onViewSubItems
 }) => {
   const [dimensions, setDimensions] = useState<RuleDimension[]>([]);
   const [chapters, setChapters] = useState<RuleChapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<RuleChapter | null>(null);
   const [editingDimension, setEditingDimension] = useState<RuleDimension | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDimensionId, setSelectedDimensionId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchChapters();
@@ -145,13 +145,14 @@ const RuleDimensionManagementPage: React.FC<RuleDimensionManagementPageProps> = 
       setLoading(false);
     }
   };
-
   const handleViewSubItems = (dimension: RuleDimension) => {
-    // For now, just store the selected dimension ID
-    // Later, we'll use this to navigate to the sub-items page
-    setSelectedDimensionId(dimension.id);
-    // In a real app with routing: navigate(`/sub-items/${dimension.id}`)
-    alert(`View sub-items for ${dimension.name} (ID: ${dimension.id}). This will be implemented in the next step.`);
+    // If there's a handler provided by the parent component, use it
+    if (onViewSubItems) {
+      onViewSubItems(dimension);
+    } else {
+      // Fallback if no handler provided
+      alert(`View sub-items for ${dimension.name} (ID: ${dimension.id}). This will be implemented in the next step.`);
+    }
   };
 
   return (

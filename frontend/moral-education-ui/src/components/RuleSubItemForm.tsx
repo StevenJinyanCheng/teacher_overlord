@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RuleSubItem, RuleDimension } from '../services/apiService';
+import type { RuleSubItem, RuleDimension } from '../services/apiService';
 
 interface RuleSubItemFormProps {
   currentSubItem: RuleSubItem | null;

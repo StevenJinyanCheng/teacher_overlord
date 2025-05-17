@@ -154,6 +154,24 @@ export interface ImportUsersResponse {
   message?: string; // For cases like empty file
 }
 
+// Function to import users from a file
+export const importUsers = async (file: File): Promise<ImportUsersResponse> => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<ImportUsersResponse>('/users/import/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error importing users:', error);
+    throw error;
+  }
+};
+
 // Rule Configuration Interfaces
 export interface RuleSubItem {
   id: number;

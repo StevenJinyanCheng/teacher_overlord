@@ -14,11 +14,12 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
-    setLoading(true);
-    try {
+    setLoading(true);    try {
       const credentials: LoginCredentials = { username, password };
       const token = await loginUser(credentials);
-      onLoginSuccess(token);
+      if (token !== null) {
+        onLoginSuccess(token);
+      }
     } catch (err) {
       setError('Login failed. Please check your username and password.');
       console.error('Login error:', err);

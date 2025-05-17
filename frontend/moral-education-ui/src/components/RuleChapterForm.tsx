@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RuleChapter } from '../services/apiService';
+import type { RuleChapter } from '../services/apiService';
 
 interface RuleChapterFormProps {
   currentChapter: RuleChapter | null;

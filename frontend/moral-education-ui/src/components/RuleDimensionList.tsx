@@ -1,5 +1,5 @@
 import React from 'react';
-import { RuleDimension } from '../services/apiService';
+import type { RuleDimension } from '../services/apiService';
 
 interface RuleDimensionListProps {
   dimensions: RuleDimension[];

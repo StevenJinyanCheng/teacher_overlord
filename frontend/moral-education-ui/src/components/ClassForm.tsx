@@ -12,11 +12,10 @@ interface ClassFormProps {
 const ClassForm: React.FC<ClassFormProps> = ({ onSubmit, initialData, grades, onCancel, error }) => {
   const [name, setName] = useState('');
   const [selectedGradeId, setSelectedGradeId] = useState<number | string>('');
-
   useEffect(() => {
     if (initialData) {
       setName(initialData.name);
-      setSelectedGradeId(initialData.grade_id);
+      setSelectedGradeId(initialData.grade);
     } else {
       setName('');
       setSelectedGradeId(''); // Reset for new form
@@ -32,10 +31,9 @@ const ClassForm: React.FC<ClassFormProps> = ({ onSubmit, initialData, grades, on
     if (!selectedGradeId) {
       alert('Please select a grade.');
       return;
-    }
-    const classDataToSubmit: Omit<SchoolClass, 'id' | 'grade_name'> = {
+    }    const classDataToSubmit: Omit<SchoolClass, 'id' | 'grade_name'> = {
       name: name.trim(),
-      grade_id: Number(selectedGradeId),
+      grade: Number(selectedGradeId),
     };
     if (initialData && initialData.id) {
       onSubmit(classDataToSubmit, initialData.id);
