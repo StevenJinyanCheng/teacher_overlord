@@ -341,8 +341,13 @@ export const deleteGrade = async (gradeId: number): Promise<void> => {
 
 // SchoolClass API functions
 export const getSchoolClasses = async (): Promise<SchoolClass[]> => {
-  const response = await apiClient.get<SchoolClass[]>('/classes/');
-  return response.data;
+  try {
+    const response = await apiClient.get<SchoolClass[]>('/schoolclasses/');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch school classes:', error);
+    throw error;
+  }
 };
 
 export const createSchoolClass = async (classData: Omit<SchoolClass, 'id' | 'grade_name'>): Promise<SchoolClass> => {
