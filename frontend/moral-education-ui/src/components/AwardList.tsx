@@ -1,41 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
   Flex,
   Heading,
   Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   Badge,
   IconButton,
-  useToast,
   Text,
   HStack,
   Select,
   Input,
-  FormControl,
-  FormLabel,
   useDisclosure,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay
+  Dialog, // CHANGED to Dialog
+  createListCollection,
 } from '@chakra-ui/react';
 import { FaEdit, FaTrash, FaStar } from 'react-icons/fa';
-import type { Award } from '../services/apiService';
+import type { Award, User } from '../services/apiService';
 import { deleteAward, getUsers } from '../services/apiService';
+import { toaster } from './ui/toaster';
 
 interface AwardListProps {
   onEdit: (award: Award) => void;
   onRefresh: () => void;
   awards: Award[];
   isLoading: boolean;
+}
+
+interface SelectItem { 
+  id: string;
+  label: string;
 }
 
 const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoading }) => {
@@ -46,29 +40,36 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
     endDate: ''
   });
   const [studentsMap, setStudentsMap] = useState<Record<number, string>>({});
+  const [studentItems, setStudentItems] = useState<SelectItem[]>([{ id: '', label: 'All Students' }]);
   const [awardToDelete, setAwardToDelete] = useState<Award | null>(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const cancelRef = React.useRef<HTMLButtonElement>(null);
-  const toast = useToast();
+  // useDisclosure returns `open` for Dialog
+  const { open: isDeleteDialogOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure(); 
+  const cancelRef = useRef<HTMLButtonElement>(null); // Still useful for Dialog.CloseTrigger focus
 
   useEffect(() => {
     const loadStudents = async () => {
       try {
-        const users = await getUsers({ role: 'student' });
+        const allUsers = await getUsers();
+        const studentUsers = allUsers.filter((user: User) => user.role === 'student');
         const map: Record<number, string> = {};
-        users.forEach(user => {
-          map[user.id] = `${user.first_name} ${user.last_name}`.trim();
+        const itemsForSelect: SelectItem[] = [{ id: '', label: 'All Students' }];
+        studentUsers.forEach(user => {
+          const userName = `${user.first_name} ${user.last_name}`.trim();
+          map[user.id] = userName;
+          itemsForSelect.push({ id: user.id.toString(), label: userName });
         });
         setStudentsMap(map);
+        setStudentItems(itemsForSelect);
       } catch (error) {
         console.error('Failed to load students:', error);
+        toaster.error({ title: 'Error loading students' }); 
       }
     };
     
     loadStudents();
   }, []);
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFilters(prev => ({
       ...prev,
@@ -76,9 +77,27 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
     }));
   };
 
+  const handleSelectFilterChange = (name: string, value: string | null) => {
+    setFilters(prev => ({
+      ...prev,
+      [name]: value || ''
+    }));
+  };
+  
+  const awardTypeItems: SelectItem[] = [
+    { id: '', label: 'All Types' },
+    { id: 'star', label: 'Star Ratings' },
+    { id: 'badge', label: 'Badges' },
+    { id: 'certificate', label: 'Certificates' },
+    { id: 'other', label: 'Other' }
+  ];
+
+  const studentCollection = createListCollection({ items: studentItems }); 
+  const awardTypeCollection = createListCollection({ items: awardTypeItems });
+
   const confirmDelete = (award: Award) => {
     setAwardToDelete(award);
-    onOpen();
+    onDeleteOpen();
   };
 
   const handleDelete = async () => {
@@ -86,23 +105,13 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
     
     try {
       await deleteAward(awardToDelete.id);
-      toast({
-        title: 'Award deleted',
-        status: 'success',
-        duration: 3000,
-        isClosable: true
-      });
+      toaster.success({ title: 'Award deleted' }); 
       onRefresh();
     } catch (error) {
       console.error('Error deleting award:', error);
-      toast({
-        title: 'Error deleting award',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
-      });
+      toaster.error({ title: 'Error deleting award' }); 
     } finally {
-      onClose();
+      onDeleteClose();
       setAwardToDelete(null);
     }
   };
@@ -160,58 +169,77 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
       
       {/* Filters */}
       <Flex direction={{ base: 'column', md: 'row' }} mb={6} gap={4} wrap="wrap">
-        <FormControl maxW={{ base: '100%', md: '200px' }}>
-          <FormLabel fontSize="sm">Student</FormLabel>
-          <Select 
-            name="studentId"
-            value={filters.studentId}
-            onChange={handleFilterChange}
-            size="sm"
+        <Box maxW={{ base: '100%', md: '200px' }}>
+          <Text as="label" fontSize="sm">Student</Text> 
+          <Select.Root
+            id="studentIdFilter"
+            collection={studentCollection}
+            value={filters.studentId ? [filters.studentId] : ['']}
+            onValueChange={(details) => {
+              handleSelectFilterChange('studentId', details.value.length > 0 ? details.value[0] : null);
+            }}
           >
-            <option value="">All Students</option>
-            {Object.entries(studentsMap).map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </Select>
-        </FormControl>
+            <Select.Trigger>
+              <Select.ValueText placeholder="All Students" />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Positioner>
+              <Select.Content>
+                {studentCollection.items.map((item: SelectItem) => (
+                  <Select.Item key={item.id} item={item}>{item.label}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+        </Box>
         
-        <FormControl maxW={{ base: '100%', md: '200px' }}>
-          <FormLabel fontSize="sm">Award Type</FormLabel>
-          <Select 
-            name="awardType"
-            value={filters.awardType}
-            onChange={handleFilterChange}
-            size="sm"
+        <Box maxW={{ base: '100%', md: '200px' }}>
+          <Text as="label" fontSize="sm">Award Type</Text> 
+          <Select.Root
+            id="awardTypeFilter"
+            collection={awardTypeCollection}
+            value={filters.awardType ? [filters.awardType] : ['']}
+            onValueChange={(details) => {
+              handleSelectFilterChange('awardType', details.value.length > 0 ? details.value[0] : null);
+            }}
           >
-            <option value="">All Types</option>
-            <option value="star">Star Ratings</option>
-            <option value="badge">Badges</option>
-            <option value="certificate">Certificates</option>
-            <option value="other">Other</option>
-          </Select>
-        </FormControl>
+            <Select.Trigger>
+              <Select.ValueText placeholder="All Types" />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Positioner>
+              <Select.Content>
+                {awardTypeCollection.items.map((item: SelectItem) => (
+                  <Select.Item key={item.id} item={item}>{item.label}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+        </Box>
         
-        <FormControl maxW={{ base: '100%', md: '200px' }}>
-          <FormLabel fontSize="sm">From Date</FormLabel>
+        <Box maxW={{ base: '100%', md: '200px' }}>
+          <Text as="label" fontSize="sm">From Date</Text> 
           <Input 
+            id="startDate"
             name="startDate"
             type="date"
             value={filters.startDate}
             onChange={handleFilterChange}
             size="sm"
           />
-        </FormControl>
+        </Box>
         
-        <FormControl maxW={{ base: '100%', md: '200px' }}>
-          <FormLabel fontSize="sm">To Date</FormLabel>
+        <Box maxW={{ base: '100%', md: '200px' }}>
+          <Text as="label" fontSize="sm">To Date</Text> 
           <Input 
+            id="endDate"
             name="endDate"
             type="date"
             value={filters.endDate}
             onChange={handleFilterChange}
             size="sm"
           />
-        </FormControl>
+        </Box>
       </Flex>
       
       {/* Awards Table */}
@@ -221,34 +249,35 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
         <Text>No awards found.</Text>
       ) : (
         <Box overflowX="auto">
-          <Table variant="simple" size="sm">
-            <Thead>
-              <Tr>
-                <Th>Student</Th>
-                <Th>Award</Th>
-                <Th>Type</Th>
-                <Th>Level</Th>
-                <Th>Date</Th>
-                <Th>Awarder</Th>
-                <Th>Actions</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
+          <Table.Root variant="line" size="sm">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeader>Student</Table.ColumnHeader>
+                <Table.ColumnHeader>Award</Table.ColumnHeader>
+                <Table.ColumnHeader>Type</Table.ColumnHeader>
+                <Table.ColumnHeader>Level</Table.ColumnHeader>
+                <Table.ColumnHeader>Date</Table.ColumnHeader>
+                <Table.ColumnHeader>Awarder</Table.ColumnHeader>
+                <Table.ColumnHeader>Actions</Table.ColumnHeader>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
               {filteredAwards.map(award => (
-                <Tr key={award.id}>
-                  <Td>{award.student_name || studentsMap[award.student] || "Unknown"}</Td>
-                  <Td>{award.name}</Td>
-                  <Td>{getAwardTypeBadge(award.award_type)}</Td>
-                  <Td>
+                <Table.Row key={award.id}>
+                  <Table.Cell>{award.student_name || studentsMap[award.student] || "Unknown"}</Table.Cell>
+                  <Table.Cell>{award.name}</Table.Cell>
+                  <Table.Cell>{getAwardTypeBadge(award.award_type)}</Table.Cell>
+                  <Table.Cell>
                     {award.award_type === 'star' ? (
                       <HStack gap={1}>{renderStarRating(award.level)}</HStack>
                     ) : (
                       award.level
                     )}
-                  </Td>
-                  <Td>{new Date(award.award_date).toLocaleDateString()}</Td>
-                  <Td>{award.awarder_name || "System"}</Td>
-                  <Td>                    <HStack>
+                  </Table.Cell>
+                  <Table.Cell>{new Date(award.award_date).toLocaleDateString()}</Table.Cell>
+                  <Table.Cell>{award.awarder_name || "System"}</Table.Cell>
+                  <Table.Cell>
+                    <HStack>
                       <IconButton
                         aria-label="Edit award"
                         size="sm"
@@ -265,47 +294,43 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
                         <FaTrash />
                       </IconButton>
                     </HStack>
-                  </Td>
-                </Tr>
+                  </Table.Cell>
+                </Table.Row>
               ))}
-            </Tbody>
-          </Table>
+            </Table.Body>
+          </Table.Root>
         </Box>
       )}
       
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        isOpen={isOpen}
-        leastDestructiveRef={cancelRef}
-        onClose={onClose}
+      {/* Delete Confirmation Dialog - Changed to Dialog */}
+      <Dialog.Root 
+        open={isDeleteDialogOpen}
+        onOpenChange={(details) => { if (!details.open) onDeleteClose(); }} // Correct prop for open state changes
       >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.Header>
               Delete Award
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
+            </Dialog.Header>
+            <Dialog.Body>
               Are you sure you want to delete this award?
               {awardToDelete && (
                 <Text mt={2} fontWeight="bold">
-                  {awardToDelete.name} - {awardToDelete.student_name}
+                  {awardToDelete.name} - {studentsMap[awardToDelete.student] || awardToDelete.student_name || 'Unknown Student'}
                 </Text>
               )}
               This action cannot be undone.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onClose}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={handleDelete} ml={3}>
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Dialog.CloseTrigger asChild>
+                <Button ref={cancelRef} variant="outline">Cancel</Button>
+              </Dialog.CloseTrigger>
+              <Button colorScheme="red" onClick={handleDelete} ml={3}>Delete</Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
     </Box>
   );
 };

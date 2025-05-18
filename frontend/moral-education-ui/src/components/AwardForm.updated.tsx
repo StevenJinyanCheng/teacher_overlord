@@ -6,17 +6,16 @@ import {
   Button, 
   Heading,
   Stack,
-  FormControl,
-  FormLabel,
-  FormErrorMessage,
   Input,
   Select,
   Textarea,
   NumberInput,
-  useToast
+  Field,
+  createListCollection // Added import
 } from '@chakra-ui/react';
 import { getUsers, createAward, updateAward } from '../services/apiService';
 import type { Award, User } from '../services/apiService';
+import { toaster } from './ui/toaster'; // Corrected import path
 
 interface AwardFormProps {
   initialAward?: Partial<Award>;
@@ -30,34 +29,50 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     description: '',
     award_type: 'star',
     level: 1,
-    student: 0,
+    student: 0, // Assuming 0 or undefined means no student selected
     award_date: new Date().toISOString().split('T')[0],
     ...initialAward
   });
   
   const [students, setStudents] = useState<User[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const toast = useToast();
   const isEditing = Boolean(initialAward?.id);
+
+  // Create collections for Select components
+  const studentCollection = createListCollection({
+    items: students.map(student => ({
+      value: String(student.id),
+      label: `${student.first_name} ${student.last_name}`
+    }))
+  });
+
+  const awardTypeCollection = createListCollection({
+    items: [
+      { value: "star", label: "Star Rating" },
+      { value: "badge", label: "Badge" },
+      { value: "certificate", label: "Certificate" },
+      { value: "other", label: "Other" },
+    ]
+  });
   
   useEffect(() => {
     const loadStudents = async () => {
       try {
-        const users = await getUsers({ role: 'student' });
+        // Assuming getUsers now takes no arguments based on TS error
+        const users = await getUsers(); 
         setStudents(users);
       } catch (error) {
         console.error('Failed to load students:', error);
-        toast({
+        toaster.create({ // Updated toast usage
           title: 'Failed to load students',
-          status: 'error',
+          type: 'error',
           duration: 3000,
-          isClosable: true
         });
       }
     };
     
     loadStudents();
-  }, [toast]);
+  }, []); // Removed toast from dependencies as it's a stable import
   
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -66,7 +81,7 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
       newErrors.name = 'Award name is required';
     }
     
-    if (!award.student) {
+    if (!award.student || award.student === 0) { // Check for 0 as well
       newErrors.student = 'Student must be selected';
     }
     
@@ -84,12 +99,16 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     return Object.keys(newErrors).length === 0;
   };
   
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setAward(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleSelectChange = (fieldName: keyof Award, details: { value: string[] }) => {
+    setAward(prev => ({ ...prev, [fieldName]: details.value[0] || (fieldName === 'student' ? 0 : '') }));
+  };
   
-  const handleLevelChange = (valueAsString: string, valueAsNumber: number) => {
+  const handleLevelChange = (_valueAsString: string, valueAsNumber: number) => { // valueAsString marked as unused
     setAward(prev => ({ ...prev, level: valueAsNumber }));
   };
   
@@ -97,137 +116,168 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     e.preventDefault();
     
     if (!validateForm()) {
-      toast({
+      toaster.create({ // Updated toast usage
         title: 'Validation error',
         description: 'Please fix the form errors',
-        status: 'error',
+        type: 'error',
         duration: 3000,
-        isClosable: true
       });
       return;
     }
     
     try {
+      const payload = {
+        ...award,
+        student: Number(award.student) || undefined, // Ensure student is number or undefined
+        level: Number(award.level)
+      };
+
       if (isEditing && initialAward?.id) {
-        await updateAward(initialAward.id, award);
-        toast({
+        await updateAward(initialAward.id, payload as Award); // Cast to Award, ensure all fields are present
+        toaster.create({ // Updated toast usage
           title: 'Award updated',
-          status: 'success',
+          type: 'success',
           duration: 3000,
-          isClosable: true
         });
       } else {
-        await createAward(award);
-        toast({
+        await createAward(payload as Omit<Award, 'id'>); // Cast, ensure all required fields for creation
+        toaster.create({ // Updated toast usage
           title: 'Award created',
-          status: 'success',
+          type: 'success',
           duration: 3000,
-          isClosable: true
         });
       }
       onSave();
     } catch (error) {
       console.error('Error saving award:', error);
-      toast({
+      toaster.create({ // Updated toast usage
         title: 'Error saving award',
-        status: 'error',
+        description: (error as Error).message || 'An unexpected error occurred.',
+        type: 'error',
         duration: 3000,
-        isClosable: true
       });
     }
   };
-  
+
   return (
     <Box as="form" onSubmit={handleSubmit} p={4}>
       <Heading size="md" mb={4}>
         {isEditing ? 'Edit Award' : 'Create New Award'}
       </Heading>
       
-      <Stack gap={4}>
-        <FormControl.Root isRequired isInvalid={!!errors.student}>
-          <FormControl.Label>Student</FormControl.Label>
-          <Select.Root name="student" value={award.student || ''} onChange={handleChange}>
-            <Select.Field>
-              <option value="">Select Student</option>
-              {students.map(student => (
-                <option key={student.id} value={student.id}>
-                  {student.first_name} {student.last_name}
-                </option>
-              ))}
-            </Select.Field>
-          </Select.Root>
-          <FormControl.ErrorMessage>{errors.student}</FormControl.ErrorMessage>
-        </FormControl.Root>
-        
-        <FormControl.Root isRequired isInvalid={!!errors.award_type}>
-          <FormControl.Label>Award Type</FormControl.Label>
-          <Select.Root 
-            name="award_type"
-            value={award.award_type || 'star'}
-            onChange={handleChange}
+      <Stack gap={4}> {/* Changed spacing to gap */}
+        <Field.Root invalid={!!errors.student} required> {/* Changed isInvalid to invalid, isRequired to required */}
+          <Field.Label>Student</Field.Label>
+          <Select.Root
+            collection={studentCollection} // Use studentCollection
+            value={award.student ? [String(award.student)] : []}
+            onValueChange={(details) => handleSelectChange('student', details)}
+            positioning={{ sameWidth: true }}
           >
-            <Select.Field>
-              <option value="star">Star Rating</option>
-              <option value="badge">Badge</option>
-              <option value="certificate">Certificate</option>
-              <option value="other">Other</option>
-            </Select.Field>
+            <Select.Control>
+              <Select.Trigger>
+                <Select.ValueText placeholder="Select Student" />
+                <Select.Indicator />
+              </Select.Trigger>
+            </Select.Control>
+            <Select.Positioner>
+              <Select.Content>
+                {studentCollection.items.map(item => ( // Iterate over collection items
+                  <Select.Item key={item.value} item={item}>
+                    <Select.ItemText>{item.label}</Select.ItemText>
+                    <Select.ItemIndicator />
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
           </Select.Root>
-          <FormControl.ErrorMessage>{errors.award_type}</FormControl.ErrorMessage>
-        </FormControl.Root>
+          <Field.ErrorText>{errors.student}</Field.ErrorText>
+        </Field.Root>
         
-        <FormControl.Root isRequired isInvalid={!!errors.name}>
-          <FormControl.Label>Award Name</FormControl.Label>
+        <Field.Root invalid={!!errors.award_type} required> {/* Changed isInvalid to invalid, isRequired to required */}
+          <Field.Label>Award Type</Field.Label>
+          <Select.Root
+            collection={awardTypeCollection} // Use awardTypeCollection
+            value={award.award_type ? [award.award_type] : []}
+            onValueChange={(details) => handleSelectChange('award_type', details)}
+            positioning={{ sameWidth: true }}
+          >
+            <Select.Control>
+              <Select.Trigger>
+                <Select.ValueText placeholder="Select Award Type" />
+                <Select.Indicator />
+              </Select.Trigger>
+            </Select.Control>
+            <Select.Positioner>
+              <Select.Content>
+                {awardTypeCollection.items.map(item => ( // Iterate over collection items
+                  <Select.Item key={item.value} item={item}>
+                    <Select.ItemText>{item.label}</Select.ItemText>
+                    <Select.ItemIndicator />
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+          <Field.ErrorText>{errors.award_type}</Field.ErrorText>
+        </Field.Root>
+        
+        <Field.Root invalid={!!errors.name} required> {/* Changed isInvalid to invalid, isRequired to required */}
+          <Field.Label>Award Name</Field.Label>
           <Input 
             name="name"
             value={award.name || ''}
-            onChange={handleChange}
+            onChange={handleInputChange}
+            _invalid={errors.name ? { borderColor: 'red.500' } : {}}
           />
-          <FormControl.ErrorMessage>{errors.name}</FormControl.ErrorMessage>
-        </FormControl.Root>
+          <Field.ErrorText>{errors.name}</Field.ErrorText>
+        </Field.Root>
         
-        <FormControl.Root isInvalid={!!errors.description}>
-          <FormControl.Label>Description</FormControl.Label>
+        <Field.Root invalid={!!errors.description}> {/* Changed isInvalid to invalid */}
+          <Field.Label>Description</Field.Label>
           <Textarea 
             name="description"
             value={award.description || ''}
-            onChange={handleChange}
+            onChange={handleInputChange}
             placeholder="Brief description of the award"
+            _invalid={errors.description ? { borderColor: 'red.500' } : {}}
           />
-          <FormControl.ErrorMessage>{errors.description}</FormControl.ErrorMessage>
-        </FormControl.Root>
+          <Field.ErrorText>{errors.description}</Field.ErrorText>
+        </Field.Root>
         
-        <FormControl.Root isRequired isInvalid={!!errors.level}>
-          <FormControl.Label>
+        <Field.Root invalid={!!errors.level} required> {/* Changed isInvalid to invalid, isRequired to required */}
+          <Field.Label>
             {award.award_type === 'star' ? 'Star Level (1-5)' : 'Achievement Level'}
-          </FormControl.Label>
+          </Field.Label>
           <NumberInput.Root 
-            value={award.level || 1} 
+            value={String(award.level || 1)} 
             min={1} 
-            max={award.award_type === 'star' ? 5 : undefined}
-            onChange={handleLevelChange}
+            max={award.award_type === 'star' ? 5 : undefined} // Max can be undefined for non-star
+            onValueChange={(details) => handleLevelChange(details.value, details.valueAsNumber)}
+            clampValueOnBlur={false} // Allow values outside min/max temporarily, validation handles it
           >
-            <NumberInput.Field />
-            <NumberInput.Stepper>
+            <NumberInput.Input _invalid={errors.level ? { borderColor: 'red.500' } : {}} />
+            <NumberInput.Control>
               <NumberInput.IncrementTrigger />
               <NumberInput.DecrementTrigger />
-            </NumberInput.Stepper>
+            </NumberInput.Control>
           </NumberInput.Root>
-          <FormControl.ErrorMessage>{errors.level}</FormControl.ErrorMessage>
-        </FormControl.Root>
+          <Field.ErrorText>{errors.level}</Field.ErrorText>
+        </Field.Root>
         
-        <FormControl.Root isRequired isInvalid={!!errors.award_date}>
-          <FormControl.Label>Award Date</FormControl.Label>
+        <Field.Root invalid={!!errors.award_date} required> {/* Changed isInvalid to invalid, isRequired to required */}
+          <Field.Label>Award Date</Field.Label>
           <Input 
             name="award_date"
             type="date"
             value={award.award_date || ''}
-            onChange={handleChange}
+            onChange={handleInputChange}
+            _invalid={errors.award_date ? { borderColor: 'red.500' } : {}}
           />
-          <FormControl.ErrorMessage>{errors.award_date}</FormControl.ErrorMessage>
-        </FormControl.Root>
+          <Field.ErrorText>{errors.award_date}</Field.ErrorText>
+        </Field.Root>
         
-        <Stack direction="row" gap={4} mt={4}>
+        <Stack direction="row" gap={4} mt={4}> {/* Changed spacing to gap */}
           <Button type="submit" colorScheme="blue">
             {isEditing ? 'Update Award' : 'Create Award'}
           </Button>

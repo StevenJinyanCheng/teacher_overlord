@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
   Container,
   Heading,
-  Text,
   Button,
   VStack,
-  useToast,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
+  Tabs, // Keep Tabs, it's a namespace
   Flex
 } from '@chakra-ui/react';
 import { FaPlus } from 'react-icons/fa';
-import type { Award } from '../services/apiService';
+import type { Award } from '../services/apiService'; // Added 'type'
 import { getAwards } from '../services/apiService';
 import AwardForm from './AwardForm';
 import AwardList from './AwardList';
 import AwardMetricsPanel from './AwardMetricsPanel';
+import { toaster } from './ui/toaster'; // Import custom toaster
 
 const AwardManagementPage: React.FC = () => {
   const [awards, setAwards] = useState<Award[]>([]);
@@ -27,7 +21,7 @@ const AwardManagementPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [activeTab, setActiveTab] = useState<number>(0);
-  const toast = useToast();
+  // Removed useToast, using custom toaster
 
   const loadAwards = async () => {
     setIsLoading(true);
@@ -36,11 +30,9 @@ const AwardManagementPage: React.FC = () => {
       setAwards(data);
     } catch (error) {
       console.error('Error loading awards:', error);
-      toast({
+      toaster.create({ 
         title: 'Error loading awards',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
+        type: 'error', // Changed status to type
       });
     } finally {
       setIsLoading(false);
@@ -75,19 +67,18 @@ const AwardManagementPage: React.FC = () => {
     loadAwards(); // Refresh the awards list
     setActiveTab(0); // Switch back to list tab
     
-    toast({
+    toaster.create({ 
       title: 'Success',
       description: selectedAward ? 'Award updated successfully' : 'Award created successfully',
-      status: 'success',
-      duration: 3000,
-      isClosable: true
+      type: 'success', // Changed status to type
     });
   };
 
   return (
     <Container maxW="container.xl" py={5}>
       <Flex justifyContent="space-between" alignItems="center" mb={6}>
-        <Heading as="h1" size="lg">Award Management</Heading>        <Button 
+        <Heading as="h1" size="lg">Award Management</Heading>
+        <Button 
           colorScheme="green"
           onClick={handleCreateClick}
           disabled={isCreating}
@@ -96,43 +87,42 @@ const AwardManagementPage: React.FC = () => {
         </Button>
       </Flex>
       
-      <Tabs index={activeTab} onChange={setActiveTab}>
-        <TabList>
-          <Tab>Awards List</Tab>
+      <Tabs.Root value={activeTab.toString()} onValueChange={(details) => setActiveTab(Number(details.value))}>
+        <Tabs.List>
+          <Tabs.Trigger value="0">Awards List</Tabs.Trigger>
           {isCreating && (
-            <Tab>
+            <Tabs.Trigger value="1">
               {selectedAward ? 'Edit Award' : 'Create Award'}
-            </Tab>
+            </Tabs.Trigger>
           )}
-        </TabList>
+          <Tabs.Indicator />
+        </Tabs.List>
         
-        <TabPanels>
-          <TabPanel px={0}>
-            <VStack spacing={8} align="stretch">
-              {/* Award Metrics */}
-              <AwardMetricsPanel awards={awards} />
-              
-              {/* Award List Table */}
-              <AwardList 
-                awards={awards}
-                isLoading={isLoading}
-                onEdit={handleEditClick}
-                onRefresh={loadAwards}
-              />
-            </VStack>
-          </TabPanel>
-          
-          {isCreating && (
-            <TabPanel px={0}>
-              <AwardForm 
-                initialAward={selectedAward || undefined}
-                onSave={handleSave}
-                onCancel={handleCancel}
-              />
-            </TabPanel>
-          )}
-        </TabPanels>
-      </Tabs>
+        <Tabs.Content value="0" pt={4}> {/* Added pt for padding, TabPanel removed */}
+          <VStack gap={8} alignItems="stretch"> {/* Changed spacing to gap, align to alignItems */}
+            {/* Award Metrics */}
+            <AwardMetricsPanel awards={awards} />
+            
+            {/* Award List Table */}
+            <AwardList 
+              awards={awards}
+              isLoading={isLoading}
+              onEdit={handleEditClick}
+              onRefresh={loadAwards}
+            />
+          </VStack>
+        </Tabs.Content>
+        
+        {isCreating && (
+          <Tabs.Content value="1" pt={4}> {/* Added pt for padding, TabPanel removed */}
+            <AwardForm 
+              initialAward={selectedAward || undefined}
+              onSave={handleSave}
+              onCancel={handleCancel}
+            />
+          </Tabs.Content>
+        )}
+      </Tabs.Root>
     </Container>
   );
 };

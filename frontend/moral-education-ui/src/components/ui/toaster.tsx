@@ -1,25 +1,18 @@
 "use client";
 
-import { 
-  createToaster, 
-  Toast, 
-  ToasterProps as ChakraToasterProps 
+import {
+  createToaster,
+  Toaster as ChakraUIRenderToasterComponent // Import the Toaster component from Chakra UI
 } from "@chakra-ui/react";
-import { ReactNode } from "react";
 
-export interface ToasterProps extends ChakraToasterProps {
-  children?: ReactNode;
-}
-
+// Create the toast instance with default configurations.
+// This instance will be used to trigger toasts (e.g., toaster.success('Message')).
 export const toaster = createToaster({
   placement: "top-end",
   duration: 3000,
 });
 
-export function Toaster(props: ToasterProps) {
-  return (
-    <Toast.Provider>
-      <Toast.Viewport {...props} />
-    </Toast.Provider>
-  );
-}
+// Export the Toaster component from Chakra UI.
+// This component needs to be rendered once in your application's layout
+// to display the toasts created by the `toaster` instance.
+export const Toaster = ChakraUIRenderToasterComponent;

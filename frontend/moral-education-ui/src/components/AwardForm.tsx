@@ -9,7 +9,8 @@ import {
   NumberInput,
   Select,
   Stack,
-  Textarea
+  Textarea,
+  useListCollection
 } from '@chakra-ui/react';
 import { getUsers, createAward, updateAward } from '../services/apiService';
 import type { Award, User } from '../services/apiService';
@@ -21,7 +22,8 @@ interface AwardFormProps {
   onCancel: () => void;
 }
 
-const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel }) => {  const [award, setAward] = useState<Partial<Award>>({
+const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel }) => {
+  const [award, setAward] = useState<Partial<Award>>({
     name: '',
     description: '',
     award_type: 'star',
@@ -33,6 +35,21 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
   const [students, setStudents] = useState<User[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const isEditing = Boolean(initialAward?.id);
+    // Create collections for Select components
+  const { collection: studentCollection } = useListCollection({
+    initialItems: students.map(student => ({
+      id: student.id.toString(),
+      label: `${student.first_name} ${student.last_name}`
+    }))
+  });
+  const { collection: awardTypeCollection } = useListCollection({
+    initialItems: [
+      { id: 'star', label: 'Star Rating' },
+      { id: 'badge', label: 'Badge' },
+      { id: 'certificate', label: 'Certificate' },
+      { id: 'other', label: 'Other' }
+    ]
+  });
   
   useEffect(() => {
     const loadStudents = async () => {
@@ -49,7 +66,8 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
       }
     };
     
-    loadStudents();  }, []);
+    loadStudents();
+  }, []);
   
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -75,7 +93,8 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setAward(prev => ({ ...prev, [name]: value }));
   };
@@ -117,7 +136,8 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
         title: 'Error saving award',
         duration: 3000,
       });
-    }  };
+    }
+  };
   
   return (
     <Box as="form" onSubmit={handleSubmit} p={4}>
@@ -125,8 +145,11 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
         {isEditing ? 'Edit Award' : 'Create New Award'}
       </Heading>
       
-      <Stack gap={4}>        <FormControl.Root isRequired isInvalid={!!errors.student}>
-          <FormControl.Label>Student</FormControl.Label>          <Select.Root
+      <Stack gap={4}>
+        <Box>
+          <Select.Label htmlFor="student">Student</Select.Label>
+          <Select.Root
+            collection={studentCollection}
             value={award.student ? [award.student.toString()] : []}
             onValueChange={(details) => {
               const numValue = details.value.length > 0 ? parseInt(details.value[0]) : 0;
@@ -139,7 +162,8 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
             </Select.Trigger>
             <Select.Positioner>
               <Select.Content>
-                <Select.ItemGroup>                  {students.map(student => (
+                <Select.ItemGroup>
+                  {students.map(student => (
                     <Select.Item key={student.id} item={student.id.toString()}>
                       {student.first_name} {student.last_name}
                     </Select.Item>
@@ -148,10 +172,13 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
               </Select.Content>
             </Select.Positioner>
           </Select.Root>
-          <FormControl.ErrorMessage>{errors.student}</FormControl.ErrorMessage>
-        </FormControl.Root>
-          <FormControl.Root isRequired isInvalid={!!errors.award_type}>
-          <FormControl.Label>Award Type</FormControl.Label>          <Select.Root
+          {errors.student && <Box color="red.500" fontSize="sm">{errors.student}</Box>}
+        </Box>
+        
+        <Box>
+          <Select.Label htmlFor="award_type">Award Type</Select.Label>
+          <Select.Root
+            collection={awardTypeCollection}
             value={[award.award_type || 'star']}
             onValueChange={(details) => {
               setAward(prev => ({ ...prev, award_type: details.value[0] as "star" | "badge" | "certificate" | "other" }));
@@ -163,7 +190,8 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
             </Select.Trigger>
             <Select.Positioner>
               <Select.Content>
-                <Select.ItemGroup>                  <Select.Item item="star">Star Rating</Select.Item>
+                <Select.ItemGroup>
+                  <Select.Item item="star">Star Rating</Select.Item>
                   <Select.Item item="badge">Badge</Select.Item>
                   <Select.Item item="certificate">Certificate</Select.Item>
                   <Select.Item item="other">Other</Select.Item>
@@ -171,30 +199,38 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
               </Select.Content>
             </Select.Positioner>
           </Select.Root>
-          <FormControl.ErrorMessage>{errors.award_type}</FormControl.ErrorMessage>
-        </FormControl.Root>
-          <FormControl.Root isRequired isInvalid={!!errors.name}>
-          <FormControl.Label>Award Name</FormControl.Label>          <Input 
+          {errors.award_type && <Box color="red.500" fontSize="sm">{errors.award_type}</Box>}
+        </Box>
+        
+        <Box>
+          <label htmlFor="name">Award Name</label>          <Input 
+            id="name"
             name="name"
             value={award.name || ''}
             onChange={handleChange}
+            _invalid={errors.name ? { borderColor: 'red.500' } : {}}
           />
-          <FormControl.ErrorMessage>{errors.name}</FormControl.ErrorMessage>
-        </FormControl.Root>
-          <FormControl.Root isInvalid={!!errors.description}>
-          <FormControl.Label>Description</FormControl.Label>          <Textarea 
+          {errors.name && <Box color="red.500" fontSize="sm">{errors.name}</Box>}
+        </Box>
+        
+        <Box>
+          <label htmlFor="description">Description</label>
+          <Textarea 
+            id="description"
             name="description"
             value={award.description || ''}
             onChange={handleChange}
             placeholder="Brief description of the award"
+            _invalid={errors.description ? { borderColor: 'red.500' } : {}}
           />
-          <FormControl.ErrorMessage>{errors.description}</FormControl.ErrorMessage>
-        </FormControl.Root>
+          {errors.description && <Box color="red.500" fontSize="sm">{errors.description}</Box>}
+        </Box>
         
-        <FormControl.Root isRequired isInvalid={!!errors.level}>
-          <FormControl.Label>
+        <Box>
+          <label htmlFor="level">
             {award.award_type === 'star' ? 'Star Level (1-5)' : 'Achievement Level'}
-          </FormControl.Label>          <NumberInput.Root
+          </label>
+          <NumberInput.Root
             value={award.level?.toString() || '1'}
             min={1} 
             max={award.award_type === 'star' ? 5 : undefined}
@@ -203,18 +239,24 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
             <NumberInput.Control />
             <NumberInput.Input />
           </NumberInput.Root>
-          <FormControl.ErrorMessage>{errors.level}</FormControl.ErrorMessage>
-        </FormControl.Root>
-          <FormControl.Root isRequired isInvalid={!!errors.award_date}>
-          <FormControl.Label>Award Date</FormControl.Label>          <Input 
+          {errors.level && <Box color="red.500" fontSize="sm">{errors.level}</Box>}
+        </Box>
+        
+        <Box>
+          <label htmlFor="award_date">Award Date</label>
+          <Input 
+            id="award_date"
             name="award_date"
             type="date"
             value={award.award_date || ''}
             onChange={handleChange}
+            _invalid={errors.award_date ? { borderColor: 'red.500' } : {}}
           />
-          <FormControl.ErrorMessage>{errors.award_date}</FormControl.ErrorMessage>
-        </FormControl.Root>
-          <Stack direction="row" gap={4} mt={4}>          <Button type="submit" colorScheme="blue">
+          {errors.award_date && <Box color="red.500" fontSize="sm">{errors.award_date}</Box>}
+        </Box>
+        
+        <Stack direction="row" gap={4} mt={4}>
+          <Button type="submit" colorScheme="blue">
             {isEditing ? 'Update Award' : 'Create Award'}
           </Button>
           <Button onClick={onCancel} variant="outline">

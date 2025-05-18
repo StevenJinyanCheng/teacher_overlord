@@ -1,24 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
-  FormControl,
-  FormLabel,
   Input,
   Select,
   Textarea,
   NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
   Stack,
   Heading,
-  useToast,
-  FormErrorMessage,
+  Field,
+  createListCollection,
 } from '@chakra-ui/react';
 import { createBehaviorScore, updateBehaviorScore } from '../services/apiService';
-import { BehaviorScore, RuleSubItem, SchoolClass } from '../services/apiService';
+import type { BehaviorScore, RuleSubItem, SchoolClass } from '../services/apiService';
+import { toaster } from './ui/toaster';
 
 interface BehaviorScoreFormProps {
   initialData?: BehaviorScore;
@@ -49,7 +44,6 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const toast = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -57,8 +51,6 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
       ...formData,
       [name]: value,
     });
-
-    // Clear error for this field if it exists
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -67,13 +59,11 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
     }
   };
 
-  const handleNumberInputChange = (name: string, value: number) => {
+  const handleNumberInputChange = (name: string, valueAsString: string, valueAsNumber: number) => {
     setFormData({
       ...formData,
-      [name]: value,
+      [name]: valueAsNumber,
     });
-
-    // Clear error for this field if it exists
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -84,91 +74,64 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.student) {
-      newErrors.student = 'Student is required';
-    }
-    if (!formData.rule_sub_item) {
-      newErrors.rule_sub_item = 'Rule is required';
-    }
-    if (!formData.school_class) {
-      newErrors.school_class = 'Class is required';
-    }
-    if (!formData.date_of_behavior) {
-      newErrors.date_of_behavior = 'Date is required';
-    }
-    if (formData.points <= 0) {
+    if (!formData.student) newErrors.student = 'Student is required';
+    if (!formData.rule_sub_item) newErrors.rule_sub_item = 'Rule is required';
+    if (!formData.school_class) newErrors.school_class = 'Class is required';
+    if (!formData.date_of_behavior) newErrors.date_of_behavior = 'Date is required';
+    if (formData.points !== undefined && formData.points <= 0) {
       newErrors.points = 'Points must be greater than 0';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
+    if (!validateForm()) return;
     setIsLoading(true);
-
     try {
       if (initialData?.id) {
-        await updateBehaviorScore(initialData.id, formData);
-        toast({
+        await updateBehaviorScore(initialData.id, formData as BehaviorScore);
+        toaster.create({
           title: 'Behavior score updated',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
+          type: 'success',
         });
       } else {
-        await createBehaviorScore(formData);
-        toast({
+        await createBehaviorScore(formData as BehaviorScore);
+        toaster.create({
           title: 'Behavior score recorded',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
+          type: 'success',
         });
       }
-
       onSuccess();
     } catch (error) {
       console.error('Error saving behavior score:', error);
-      toast({
+      toaster.create({
         title: 'Error',
         description: 'Failed to save behavior score',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
+        type: 'error',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Group rule subitems by dimensions and chapters for better organization
-  const organizedRules: {
-    [chapterName: string]: {
-      [dimensionName: string]: RuleSubItem[];
-    };
-  } = {};
-
+  const organizedRules: { [chapterName: string]: { [dimensionName: string]: RuleSubItem[] } } = {};
   ruleSubItems.forEach((item) => {
-    const chapterName = item.dimension_name?.split(' - ')[0] || 'Unknown Chapter';
-    const dimensionName = item.dimension_name?.split(' - ')[1] || 'Unknown Dimension';
+    const nameParts = item.dimension_name ? item.dimension_name.split(' - ') : ['Unknown Chapter', 'Unknown Dimension'];
+    const chapterName = nameParts[0] || 'Unknown Chapter';
+    const dimensionName = nameParts[1] || 'Unknown Dimension';
     
-    if (!organizedRules[chapterName]) {
-      organizedRules[chapterName] = {};
-    }
-    
-    if (!organizedRules[chapterName][dimensionName]) {
-      organizedRules[chapterName][dimensionName] = [];
-    }
-    
+    if (!organizedRules[chapterName]) organizedRules[chapterName] = {};
+    if (!organizedRules[chapterName][dimensionName]) organizedRules[chapterName][dimensionName] = [];
     organizedRules[chapterName][dimensionName].push(item);
   });
+
+  const studentItems = students.map(s => ({ id: s.id.toString(), label: s.full_name || s.username }));
+  const studentCollection = createListCollection({ items: studentItems });
+
+  const schoolClassItems = schoolClasses.map(sc => ({ id: sc.id.toString(), label: `${sc.name} (${sc.grade_name})` }));
+  const schoolClassCollection = createListCollection({ items: schoolClassItems });
 
   return (
     <Box as="form" onSubmit={handleSubmit} width="100%" maxWidth="800px" mx="auto" p={4}>
@@ -176,122 +139,130 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
         {initialData ? 'Edit Behavior Score' : 'Record Behavior Score'}
       </Heading>
 
-      <Stack spacing={4}>
-        <FormControl isRequired isInvalid={!!errors.student}>
-          <FormLabel>Student</FormLabel>
-          <Select
-            name="student"
-            value={formData.student || ''}
-            onChange={handleInputChange}
+      <Stack gap={4}>
+        <Field.Root name="student" isRequired isInvalid={!!errors.student}>
+          <Field.Label>Student</Field.Label>
+          <Select.Root
+            id="student"
+            value={formData.student ? [formData.student.toString()] : []}
+            onValueChange={(details) => handleInputChange({ target: { name: 'student', value: details.value.length > 0 ? details.value[0] : '' } } as any )}
             placeholder="Select student"
+            items={studentCollection}
           >
-            {students.map((student) => (
-              <option key={student.id} value={student.id}>
-                {student.full_name || student.username}
-              </option>
-            ))}
-          </Select>
-          <FormErrorMessage>{errors.student}</FormErrorMessage>
-        </FormControl>
+            <Select.Trigger />
+            <Select.Positioner>
+              <Select.Content>
+                {studentCollection.items.map((item: {id: string, label: string}) => (
+                  <Select.Item key={item.id} item={item}>{item.label}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+          <Field.ErrorMessage>{errors.student}</Field.ErrorMessage>
+        </Field.Root>
 
-        <FormControl isRequired isInvalid={!!errors.school_class}>
-          <FormLabel>Class</FormLabel>
-          <Select
-            name="school_class"
-            value={formData.school_class || ''}
-            onChange={handleInputChange}
+        <Field.Root name="school_class" isRequired isInvalid={!!errors.school_class}>
+          <Field.Label>Class</Field.Label>
+          <Select.Root
+            id="school_class"
+            value={formData.school_class ? [formData.school_class.toString()] : []}
+            onValueChange={(details) => handleInputChange({ target: { name: 'school_class', value: details.value.length > 0 ? details.value[0] : '' } } as any)}
             placeholder="Select class"
+            items={schoolClassCollection}
           >
-            {schoolClasses.map((schoolClass) => (
-              <option key={schoolClass.id} value={schoolClass.id}>
-                {schoolClass.name} ({schoolClass.grade_name})
-              </option>
-            ))}
-          </Select>
-          <FormErrorMessage>{errors.school_class}</FormErrorMessage>
-        </FormControl>
+            <Select.Trigger />
+            <Select.Positioner>
+              <Select.Content>
+                {schoolClassCollection.items.map((item: {id: string, label: string}) => (
+                  <Select.Item key={item.id} item={item}>{item.label}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+          <Field.ErrorMessage>{errors.school_class}</Field.ErrorMessage>
+        </Field.Root>
 
-        <FormControl isRequired isInvalid={!!errors.rule_sub_item}>
-          <FormLabel>Behavior Rule</FormLabel>
-          <Select
+        <Field.Root name="rule_sub_item" isRequired isInvalid={!!errors.rule_sub_item}>
+          <Field.Label>Behavior Rule</Field.Label>
+          <Select.RootNative
+            id="rule_sub_item_native"
             name="rule_sub_item"
-            value={formData.rule_sub_item || ''}
-            onChange={handleInputChange}
+            value={formData.rule_sub_item?.toString() || ''}
+            onChange={handleInputChange} 
             placeholder="Select rule"
           >
             {Object.entries(organizedRules).map(([chapterName, dimensions]) => (
-              <React.Fragment key={chapterName}>
-                <optgroup label={`Chapter: ${chapterName}`}>
-                  {Object.entries(dimensions).map(([dimensionName, rules]) => (
-                    <React.Fragment key={dimensionName}>
-                      {rules.map((rule) => (
-                        <option key={rule.id} value={rule.id}>
-                          {dimensionName} - {rule.name}
-                        </option>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </optgroup>
-              </React.Fragment>
+              <optgroup key={chapterName} label={`Chapter: ${chapterName}`}>
+                {Object.entries(dimensions).map(([dimensionName, rules]) => (
+                  <React.Fragment key={dimensionName}>
+                    {rules.map((rule) => (
+                      <option key={rule.id} value={rule.id}>
+                        {dimensionName} - {rule.name}
+                      </option>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </optgroup>
             ))}
-          </Select>
-          <FormErrorMessage>{errors.rule_sub_item}</FormErrorMessage>
-        </FormControl>
+          </Select.RootNative>
+          <Field.ErrorMessage>{errors.rule_sub_item}</Field.ErrorMessage>
+        </Field.Root>
 
-        <FormControl>
-          <FormLabel>Score Type</FormLabel>
-          <Select
+        <Field.Root name="score_type">
+          <Field.Label>Score Type</Field.Label>
+          <Select.RootNative
+            id="score_type_native"
             name="score_type"
             value={formData.score_type || 'positive'}
             onChange={handleInputChange}
           >
             <option value="positive">Positive</option>
             <option value="negative">Negative</option>
-          </Select>
-        </FormControl>
+          </Select.RootNative>
+        </Field.Root>
 
-        <FormControl isRequired isInvalid={!!errors.points}>
-          <FormLabel>Points</FormLabel>
-          <NumberInput
+        <Field.Root name="points" isRequired isInvalid={!!errors.points}>
+          <Field.Label>Points</Field.Label>
+          <NumberInput.Root
             min={1}
-            value={formData.points || 1}
-            onChange={(_, value) => handleNumberInputChange('points', value)}
+            value={formData.points?.toString() || "1"}
+            onValueChange={(details) => handleNumberInputChange('points', details.value, details.valueAsNumber)}
           >
-            <NumberInputField />
-            <NumberInputStepper>
-              <NumberIncrementStepper />
-              <NumberDecrementStepper />
-            </NumberInputStepper>
-          </NumberInput>
-          <FormErrorMessage>{errors.points}</FormErrorMessage>
-        </FormControl>
+            <NumberInput.Field />
+            <NumberInput.Control>
+              <NumberInput.IncrementTrigger />
+              <NumberInput.DecrementTrigger />
+            </NumberInput.Control>
+          </NumberInput.Root>
+          <Field.ErrorMessage>{errors.points}</Field.ErrorMessage>
+        </Field.Root>
 
-        <FormControl isRequired isInvalid={!!errors.date_of_behavior}>
-          <FormLabel>Date of Behavior</FormLabel>
+        <Field.Root name="date_of_behavior" isRequired isInvalid={!!errors.date_of_behavior}>
+          <Field.Label>Date of Behavior</Field.Label>
           <Input
             name="date_of_behavior"
             type="date"
             value={formData.date_of_behavior || ''}
             onChange={handleInputChange}
           />
-          <FormErrorMessage>{errors.date_of_behavior}</FormErrorMessage>
-        </FormControl>
+          <Field.ErrorMessage>{errors.date_of_behavior}</Field.ErrorMessage>
+        </Field.Root>
 
-        <FormControl>
-          <FormLabel>Comments</FormLabel>
+        <Field.Root name="comment">
+          <Field.Label>Comments</Field.Label>
           <Textarea
             name="comment"
             value={formData.comment || ''}
             onChange={handleInputChange}
             placeholder="Add any notes or context about this behavior"
           />
-        </FormControl>
+        </Field.Root>
 
         <Box display="flex" justifyContent="flex-end" gap={4} mt={4}>
           <Button onClick={onCancel} variant="outline">
             Cancel
           </Button>
-          <Button type="submit" colorScheme="blue" isLoading={isLoading}>
+          <Button type="submit" colorScheme="blue" loading={isLoading}>
             {initialData ? 'Update' : 'Save'}
           </Button>
         </Box>
