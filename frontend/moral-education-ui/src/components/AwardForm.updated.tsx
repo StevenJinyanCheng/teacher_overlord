@@ -1,19 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import {
+import { 
   Box,
-  Button,
+  Button, 
   Heading,
-  Input,
-  NumberInput,
-  Select,
   Stack,
-  Textarea
+  FormControl,
+  FormLabel,
+  FormErrorMessage,
+  Input,
+  Select,
+  Textarea,
+  NumberInput,
+  useToast
 } from '@chakra-ui/react';
 import { getUsers, createAward, updateAward } from '../services/apiService';
 import type { Award, User } from '../services/apiService';
-import { toaster } from './ui/toaster';
 
 interface AwardFormProps {
   initialAward?: Partial<Award>;
@@ -21,7 +24,8 @@ interface AwardFormProps {
   onCancel: () => void;
 }
 
-const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel }) => {  const [award, setAward] = useState<Partial<Award>>({
+const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel }) => {
+  const [award, setAward] = useState<Partial<Award>>({
     name: '',
     description: '',
     award_type: 'star',
@@ -30,26 +34,30 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     award_date: new Date().toISOString().split('T')[0],
     ...initialAward
   });
+  
   const [students, setStudents] = useState<User[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const toast = useToast();
   const isEditing = Boolean(initialAward?.id);
   
   useEffect(() => {
     const loadStudents = async () => {
       try {
-        const users = await getUsers();
-        const studentUsers = users.filter(user => user.role === 'student');
-        setStudents(studentUsers);
+        const users = await getUsers({ role: 'student' });
+        setStudents(users);
       } catch (error) {
         console.error('Failed to load students:', error);
-        toaster.error({
+        toast({
           title: 'Failed to load students',
+          status: 'error',
           duration: 3000,
+          isClosable: true
         });
       }
     };
     
-    loadStudents();  }, []);
+    loadStudents();
+  }, [toast]);
   
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -75,12 +83,13 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setAward(prev => ({ ...prev, [name]: value }));
   };
   
-  const handleLevelChange = (valueAsNumber: number) => {
+  const handleLevelChange = (valueAsString: string, valueAsNumber: number) => {
     setAward(prev => ({ ...prev, level: valueAsNumber }));
   };
   
@@ -88,10 +97,12 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     e.preventDefault();
     
     if (!validateForm()) {
-      toaster.error({
+      toast({
         title: 'Validation error',
         description: 'Please fix the form errors',
+        status: 'error',
         duration: 3000,
+        isClosable: true
       });
       return;
     }
@@ -99,25 +110,32 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     try {
       if (isEditing && initialAward?.id) {
         await updateAward(initialAward.id, award);
-        toaster.success({
+        toast({
           title: 'Award updated',
+          status: 'success',
           duration: 3000,
+          isClosable: true
         });
       } else {
         await createAward(award);
-        toaster.success({
+        toast({
           title: 'Award created',
+          status: 'success',
           duration: 3000,
+          isClosable: true
         });
       }
       onSave();
     } catch (error) {
       console.error('Error saving award:', error);
-      toaster.error({
+      toast({
         title: 'Error saving award',
+        status: 'error',
         duration: 3000,
+        isClosable: true
       });
-    }  };
+    }
+  };
   
   return (
     <Box as="form" onSubmit={handleSubmit} p={4}>
@@ -125,64 +143,52 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
         {isEditing ? 'Edit Award' : 'Create New Award'}
       </Heading>
       
-      <Stack gap={4}>        <FormControl.Root isRequired isInvalid={!!errors.student}>
-          <FormControl.Label>Student</FormControl.Label>          <Select.Root
-            value={award.student ? [award.student.toString()] : []}
-            onValueChange={(details) => {
-              const numValue = details.value.length > 0 ? parseInt(details.value[0]) : 0;
-              setAward(prev => ({ ...prev, student: numValue }));
-            }}
-          >
-            <Select.Trigger>
-              <Select.ValueText placeholder="Select Student" />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Positioner>
-              <Select.Content>
-                <Select.ItemGroup>                  {students.map(student => (
-                    <Select.Item key={student.id} item={student.id.toString()}>
-                      {student.first_name} {student.last_name}
-                    </Select.Item>
-                  ))}
-                </Select.ItemGroup>
-              </Select.Content>
-            </Select.Positioner>
+      <Stack gap={4}>
+        <FormControl.Root isRequired isInvalid={!!errors.student}>
+          <FormControl.Label>Student</FormControl.Label>
+          <Select.Root name="student" value={award.student || ''} onChange={handleChange}>
+            <Select.Field>
+              <option value="">Select Student</option>
+              {students.map(student => (
+                <option key={student.id} value={student.id}>
+                  {student.first_name} {student.last_name}
+                </option>
+              ))}
+            </Select.Field>
           </Select.Root>
           <FormControl.ErrorMessage>{errors.student}</FormControl.ErrorMessage>
         </FormControl.Root>
-          <FormControl.Root isRequired isInvalid={!!errors.award_type}>
-          <FormControl.Label>Award Type</FormControl.Label>          <Select.Root
-            value={[award.award_type || 'star']}
-            onValueChange={(details) => {
-              setAward(prev => ({ ...prev, award_type: details.value[0] as "star" | "badge" | "certificate" | "other" }));
-            }}
+        
+        <FormControl.Root isRequired isInvalid={!!errors.award_type}>
+          <FormControl.Label>Award Type</FormControl.Label>
+          <Select.Root 
+            name="award_type"
+            value={award.award_type || 'star'}
+            onChange={handleChange}
           >
-            <Select.Trigger>
-              <Select.ValueText />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Positioner>
-              <Select.Content>
-                <Select.ItemGroup>                  <Select.Item item="star">Star Rating</Select.Item>
-                  <Select.Item item="badge">Badge</Select.Item>
-                  <Select.Item item="certificate">Certificate</Select.Item>
-                  <Select.Item item="other">Other</Select.Item>
-                </Select.ItemGroup>
-              </Select.Content>
-            </Select.Positioner>
+            <Select.Field>
+              <option value="star">Star Rating</option>
+              <option value="badge">Badge</option>
+              <option value="certificate">Certificate</option>
+              <option value="other">Other</option>
+            </Select.Field>
           </Select.Root>
           <FormControl.ErrorMessage>{errors.award_type}</FormControl.ErrorMessage>
         </FormControl.Root>
-          <FormControl.Root isRequired isInvalid={!!errors.name}>
-          <FormControl.Label>Award Name</FormControl.Label>          <Input 
+        
+        <FormControl.Root isRequired isInvalid={!!errors.name}>
+          <FormControl.Label>Award Name</FormControl.Label>
+          <Input 
             name="name"
             value={award.name || ''}
             onChange={handleChange}
           />
           <FormControl.ErrorMessage>{errors.name}</FormControl.ErrorMessage>
         </FormControl.Root>
-          <FormControl.Root isInvalid={!!errors.description}>
-          <FormControl.Label>Description</FormControl.Label>          <Textarea 
+        
+        <FormControl.Root isInvalid={!!errors.description}>
+          <FormControl.Label>Description</FormControl.Label>
+          <Textarea 
             name="description"
             value={award.description || ''}
             onChange={handleChange}
@@ -194,19 +200,25 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
         <FormControl.Root isRequired isInvalid={!!errors.level}>
           <FormControl.Label>
             {award.award_type === 'star' ? 'Star Level (1-5)' : 'Achievement Level'}
-          </FormControl.Label>          <NumberInput.Root
-            value={award.level?.toString() || '1'}
+          </FormControl.Label>
+          <NumberInput.Root 
+            value={award.level || 1} 
             min={1} 
             max={award.award_type === 'star' ? 5 : undefined}
-            onValueChange={({valueAsNumber}) => handleLevelChange(valueAsNumber)}
+            onChange={handleLevelChange}
           >
-            <NumberInput.Control />
-            <NumberInput.Input />
+            <NumberInput.Field />
+            <NumberInput.Stepper>
+              <NumberInput.IncrementTrigger />
+              <NumberInput.DecrementTrigger />
+            </NumberInput.Stepper>
           </NumberInput.Root>
           <FormControl.ErrorMessage>{errors.level}</FormControl.ErrorMessage>
         </FormControl.Root>
-          <FormControl.Root isRequired isInvalid={!!errors.award_date}>
-          <FormControl.Label>Award Date</FormControl.Label>          <Input 
+        
+        <FormControl.Root isRequired isInvalid={!!errors.award_date}>
+          <FormControl.Label>Award Date</FormControl.Label>
+          <Input 
             name="award_date"
             type="date"
             value={award.award_date || ''}
@@ -214,7 +226,9 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
           />
           <FormControl.ErrorMessage>{errors.award_date}</FormControl.ErrorMessage>
         </FormControl.Root>
-          <Stack direction="row" gap={4} mt={4}>          <Button type="submit" colorScheme="blue">
+        
+        <Stack direction="row" gap={4} mt={4}>
+          <Button type="submit" colorScheme="blue">
             {isEditing ? 'Update Award' : 'Create Award'}
           </Button>
           <Button onClick={onCancel} variant="outline">
