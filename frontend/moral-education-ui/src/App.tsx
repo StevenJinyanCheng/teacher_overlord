@@ -11,6 +11,7 @@ import StudentParentPage from './components/StudentParentPage'; // Import Studen
 import AwardManagementPage from './components/AwardManagementPage'; // Import AwardManagementPage
 import PrincipalDashboard from './components/PrincipalDashboard'; // Import PrincipalDashboard
 import NotificationCenter from './components/NotificationCenter'; // Import NotificationCenter
+import StudentSelfReportPage from './components/StudentSelfReportPage'; // Import StudentSelfReportPage
 import { getToken, logoutUser, getCurrentUser } from './services/apiService';
 import type { User } from './services/apiService';
 
@@ -52,6 +53,11 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
               <Link to="/leadership/dashboard" style={{ marginRight: '10px' }}>Analytics Dashboard</Link>
             </>
           )}
+          {currentUser.role === 'student' && (
+            <>
+              <Link to="/student/self-reports" style={{ marginRight: '10px' }}>Self-Reports</Link>
+            </>
+          )}
           {/* Add other navigation links here based on role */}
         </nav>
       </header>
@@ -76,6 +82,11 @@ const MainLayout: React.FC<{ currentUser: User; onLogout: () => void }> = ({ cur
           {(currentUser.role === 'principal' || currentUser.role === 'director') && (
             <>
               <Route path="/leadership/dashboard" element={<PrincipalDashboard />} />
+            </>
+          )}
+          {currentUser.role === 'student' && (
+            <>
+              <Route path="/student/self-reports" element={<StudentSelfReportPage />} />
             </>
           )}
           {/* Add other routes here */}
