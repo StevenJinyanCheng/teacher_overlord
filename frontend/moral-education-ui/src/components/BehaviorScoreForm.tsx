@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Input, // For date input
-  Select as ChakraSelect, // Renaming to avoid confusion, using for native selects
   Textarea,
   NumberInput,
   Stack,
@@ -17,6 +16,7 @@ import {
   SelectPositioner,
   SelectContent,
   SelectItem,
+  NativeSelect, // Added NativeSelect
 } from '@chakra-ui/react';
 import { createBehaviorScore, updateBehaviorScore } from '../services/apiService';
 import type { BehaviorScore, RuleSubItem as BaseRuleSubItem, SchoolClass } from '../services/apiService';
@@ -239,39 +239,41 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
 
         <Field.Root required invalid={!!errors.rule_sub_item}>
           <Field.Label>Behavior Rule</Field.Label>
-          <ChakraSelect
-            id="rule_sub_item_native"
-            name="rule_sub_item"
-            value={formData.rule_sub_item?.toString() || ''} // Ensure value is string for native select
-            onChange={handleInputChange}
-            placeholder="Select rule"
-          >
-            {Object.entries(organizedRules).map(([chapterName, dimensions]) => (
-              <optgroup key={chapterName} label={`Chapter: ${chapterName}`}>
-                {Object.entries(dimensions).map(([dimensionName, rules]) =>
-                  rules.map((rule: EnrichedRuleSubItem) => (
-                      <option key={rule.id} value={rule.id}>
-                        {dimensionName} - {rule.name}
-                      </option>
-                  ))
-                )}
-              </optgroup>
-            ))}
-          </ChakraSelect>
+          <NativeSelect.Root id="rule_sub_item_native">
+            <NativeSelect.Field 
+              name="rule_sub_item" 
+              value={formData.rule_sub_item?.toString() || ''} // Ensure value is string for native select
+              placeholder="Select rule" 
+              onChange={handleInputChange}
+            >
+              {Object.entries(organizedRules).map(([chapterName, dimensions]) => (
+                <optgroup key={chapterName} label={`Chapter: ${chapterName}`}>
+                  {Object.entries(dimensions).map(([dimensionName, rules]) =>
+                    rules.map((rule: EnrichedRuleSubItem) => (
+                        <option key={rule.id} value={rule.id}>
+                          {dimensionName} - {rule.name}
+                        </option>
+                    ))
+                  )}
+                </optgroup>
+              ))}
+            </NativeSelect.Field>
+          </NativeSelect.Root>
           {errors.rule_sub_item && <Field.HelperText color="red.500">{errors.rule_sub_item}</Field.HelperText>}
         </Field.Root>
 
         <Field.Root>
           <Field.Label>Score Type</Field.Label>
-          <ChakraSelect
-            id="score_type_native"
-            name="score_type"
-            value={formData.score_type || 'positive'}
-            onChange={handleInputChange}
-          >
-            <option value="positive">Positive</option>
-            <option value="negative">Negative</option>
-          </ChakraSelect>
+          <NativeSelect.Root id="score_type_native">
+            <NativeSelect.Field 
+              name="score_type" 
+              value={formData.score_type || 'positive'} 
+              onChange={handleInputChange}
+            >
+              <option value="positive">Positive</option>
+              <option value="negative">Negative</option>
+            </NativeSelect.Field>
+          </NativeSelect.Root>
         </Field.Root>
 
         <Field.Root required invalid={!!errors.points}>

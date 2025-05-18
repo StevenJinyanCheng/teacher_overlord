@@ -6,7 +6,7 @@ import {
   FormControl,
   FormLabel,
   Input,
-  Select,
+  Select, // Reverted: Keep Select as is, NativeSelect is not needed here as per original file structure and to avoid cascading import errors
   Textarea,
   Stack,
   useToast,
@@ -334,6 +334,7 @@ const ParentObservationPage: React.FC<ParentObservationPageProps> = ({ currentUs
               <Stack spacing={4}>
                 <FormControl isRequired>
                   <FormLabel>Student</FormLabel>
+                  {/* Reverted: Using original Select component */}
                   <Select
                     name="student"
                     value={formData.student || ''}
@@ -350,6 +351,7 @@ const ParentObservationPage: React.FC<ParentObservationPageProps> = ({ currentUs
 
                 <FormControl>
                   <FormLabel>Specific Rule (Optional)</FormLabel>
+                  {/* Reverted: Using original Select component */}
                   <Select
                     name="rule_sub_item"
                     value={formData.rule_sub_item || ''}

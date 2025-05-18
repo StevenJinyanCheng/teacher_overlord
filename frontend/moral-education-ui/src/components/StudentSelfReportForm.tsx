@@ -9,7 +9,7 @@ import {
   Input,
   Textarea,
   Button,
-  Select,
+  Select, // Reverted: Keep Select as is, NativeSelect is not needed here as per original file structure and to avoid cascading import errors
   FormErrorMessage,
   useToast,
   Alert,
@@ -19,7 +19,7 @@ import {
   CloseButton,
   Grid,
   GridItem,
-  HStack
+  HStack,
 } from '@chakra-ui/react';
 import { createStudentSelfReport, getRuleSubItems } from '../services/apiService';
 
@@ -162,6 +162,9 @@ const StudentSelfReportForm: React.FC<StudentSelfReportFormProps> = ({
             <GridItem colSpan={{ base: 12, md: 6 }}>
               <FormControl>
                 <FormLabel>Related Rule (Optional)</FormLabel>
+                {/* Reverted: Using original Select component as NativeSelect caused issues 
+                    Further investigation needed if NativeSelect is strictly required here, 
+                    but for now, reverting to ensure no cascading errors from this file. */}
                 <Select 
                   placeholder="Select a rule"
                   value={ruleSubItemId}
