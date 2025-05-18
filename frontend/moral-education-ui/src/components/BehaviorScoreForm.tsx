@@ -2,23 +2,41 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
-  Input,
-  Select,
+  Input, // For date input
+  Select as ChakraSelect, // Renaming to avoid confusion, using for native selects
   Textarea,
   NumberInput,
   Stack,
   Heading,
   Field,
   createListCollection,
+  type ListCollection,
+  SelectRoot, // Explicitly import SelectRoot for the composable select
+  SelectTrigger,
+  SelectValueText,
+  SelectPositioner,
+  SelectContent,
+  SelectItem,
 } from '@chakra-ui/react';
 import { createBehaviorScore, updateBehaviorScore } from '../services/apiService';
-import type { BehaviorScore, RuleSubItem, SchoolClass } from '../services/apiService';
+import type { BehaviorScore, RuleSubItem as BaseRuleSubItem, SchoolClass } from '../services/apiService';
 import { toaster } from './ui/toaster';
+
+// Extend BaseRuleSubItem to include dimension_name, as it seems to be used in the form logic
+interface EnrichedRuleSubItem extends BaseRuleSubItem {
+  dimension_name?: string; // This property is used when organizing rules
+}
+
+interface StudentForItem {
+  id: number;
+  username: string;
+  full_name: string;
+}
 
 interface BehaviorScoreFormProps {
   initialData?: BehaviorScore;
-  students: { id: number; username: string; full_name: string }[];
-  ruleSubItems: RuleSubItem[];
+  students: StudentForItem[];
+  ruleSubItems: EnrichedRuleSubItem[]; // Use the enriched type here
   schoolClasses: SchoolClass[];
   onSuccess: () => void;
   onCancel: () => void;
@@ -27,17 +45,17 @@ interface BehaviorScoreFormProps {
 const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
   initialData,
   students,
-  ruleSubItems,
+  ruleSubItems, // Now typed as EnrichedRuleSubItem[]
   schoolClasses,
   onSuccess,
   onCancel,
 }) => {
   const [formData, setFormData] = useState<Partial<BehaviorScore>>({
-    student: initialData?.student || 0,
-    rule_sub_item: initialData?.rule_sub_item || 0,
-    school_class: initialData?.school_class || 0,
+    student: initialData?.student, 
+    rule_sub_item: initialData?.rule_sub_item,
+    school_class: initialData?.school_class,
     score_type: initialData?.score_type || 'positive',
-    points: initialData?.points || 1,
+    points: initialData?.points === undefined || initialData.points === null ? 1 : initialData.points,
     comment: initialData?.comment || '',
     date_of_behavior: initialData?.date_of_behavior || new Date().toISOString().split('T')[0],
   });
@@ -47,10 +65,19 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    let processedValue: string | number | undefined = value;
+
+    if ((name === 'student' || name === 'school_class') && value !== '') {
+      processedValue = parseInt(value, 10);
+    } else if (name === 'rule_sub_item') {
+      processedValue = value === '' ? undefined : parseInt(value, 10); 
+    }
+    
     setFormData({
       ...formData,
-      [name]: value,
+      [name]: processedValue,
     });
+
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -59,7 +86,25 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
     }
   };
 
-  const handleNumberInputChange = (name: string, valueAsString: string, valueAsNumber: number) => {
+  const handleStudentChange = (details: { value: string[] }) => {
+    const studentIdString = details.value.length > 0 ? details.value[0] : undefined;
+    const studentId = studentIdString ? parseInt(studentIdString, 10) : undefined;
+    setFormData(prev => ({ ...prev, student: studentId }));
+    if (errors.student && studentId !== undefined) {
+      setErrors(prev => ({ ...prev, student: '' }));
+    }
+  };
+
+  const handleSchoolClassChange = (details: { value: string[] }) => {
+    const classIdString = details.value.length > 0 ? details.value[0] : undefined;
+    const classId = classIdString ? parseInt(classIdString, 10) : undefined;
+    setFormData(prev => ({ ...prev, school_class: classId }));
+    if (errors.school_class && classId !== undefined) {
+      setErrors(prev => ({ ...prev, school_class: '' }));
+    }
+  };
+
+  const handleNumberInputChange = (name: string, valueAsNumber: number) => {
     setFormData({
       ...formData,
       [name]: valueAsNumber,
@@ -74,11 +119,12 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.student) newErrors.student = 'Student is required';
-    if (!formData.rule_sub_item) newErrors.rule_sub_item = 'Rule is required';
-    if (!formData.school_class) newErrors.school_class = 'Class is required';
+    if (formData.student === undefined) newErrors.student = 'Student is required';
+    if (formData.rule_sub_item === undefined || formData.rule_sub_item === null || Number.isNaN(formData.rule_sub_item)) newErrors.rule_sub_item = 'Rule is required';
+    if (formData.school_class === undefined) newErrors.school_class = 'Class is required';
     if (!formData.date_of_behavior) newErrors.date_of_behavior = 'Date is required';
-    if (formData.points !== undefined && formData.points <= 0) {
+    const pointsValue = formData.points === undefined ? 1 : formData.points;
+    if (pointsValue <= 0) {
       newErrors.points = 'Points must be greater than 0';
     }
     setErrors(newErrors);
@@ -90,14 +136,21 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
     if (!validateForm()) return;
     setIsLoading(true);
     try {
+      const payload: Partial<BehaviorScore> = { ...formData };
+      // Ensure rule_sub_item is a number if it was set via native select
+      if (typeof payload.rule_sub_item === 'string') {
+        payload.rule_sub_item = parseInt(payload.rule_sub_item, 10);
+        if (Number.isNaN(payload.rule_sub_item)) payload.rule_sub_item = undefined;
+      }
+
       if (initialData?.id) {
-        await updateBehaviorScore(initialData.id, formData as BehaviorScore);
+        await updateBehaviorScore(initialData.id, payload as BehaviorScore);
         toaster.create({
           title: 'Behavior score updated',
           type: 'success',
         });
       } else {
-        await createBehaviorScore(formData as BehaviorScore);
+        await createBehaviorScore(payload as BehaviorScore);
         toaster.create({
           title: 'Behavior score recorded',
           type: 'success',
@@ -116,8 +169,8 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
     }
   };
 
-  const organizedRules: { [chapterName: string]: { [dimensionName: string]: RuleSubItem[] } } = {};
-  ruleSubItems.forEach((item) => {
+  const organizedRules: { [chapterName: string]: { [dimensionName: string]: EnrichedRuleSubItem[] } } = {};
+  ruleSubItems.forEach((item: EnrichedRuleSubItem) => {
     const nameParts = item.dimension_name ? item.dimension_name.split(' - ') : ['Unknown Chapter', 'Unknown Dimension'];
     const chapterName = nameParts[0] || 'Unknown Chapter';
     const dimensionName = nameParts[1] || 'Unknown Dimension';
@@ -127,11 +180,11 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
     organizedRules[chapterName][dimensionName].push(item);
   });
 
-  const studentItems = students.map(s => ({ id: s.id.toString(), label: s.full_name || s.username }));
-  const studentCollection = createListCollection({ items: studentItems });
+  const studentItems = students.map((s: StudentForItem) => ({ id: s.id.toString(), label: s.full_name || s.username }));
+  const studentCollection: ListCollection<{ id: string; label: string; }> = createListCollection({items: studentItems});
 
-  const schoolClassItems = schoolClasses.map(sc => ({ id: sc.id.toString(), label: `${sc.name} (${sc.grade_name})` }));
-  const schoolClassCollection = createListCollection({ items: schoolClassItems });
+  const schoolClassItems = schoolClasses.map((sc: SchoolClass) => ({ id: sc.id.toString(), label: `${sc.name} (${sc.grade_name})` }));
+  const schoolClassCollection: ListCollection<{ id: string; label: string; }> = createListCollection({items: schoolClassItems});
 
   return (
     <Box as="form" onSubmit={handleSubmit} width="100%" maxWidth="800px" mx="auto" p={4}>
@@ -140,77 +193,77 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
       </Heading>
 
       <Stack gap={4}>
-        <Field.Root name="student" isRequired isInvalid={!!errors.student}>
+        <Field.Root required invalid={!!errors.student}>
           <Field.Label>Student</Field.Label>
-          <Select.Root
+          <SelectRoot
             id="student"
-            value={formData.student ? [formData.student.toString()] : []}
-            onValueChange={(details) => handleInputChange({ target: { name: 'student', value: details.value.length > 0 ? details.value[0] : '' } } as any )}
-            placeholder="Select student"
-            items={studentCollection}
+            value={formData.student !== undefined ? [String(formData.student)] : []}
+            onValueChange={handleStudentChange}
+            collection={studentCollection}
           >
-            <Select.Trigger />
-            <Select.Positioner>
-              <Select.Content>
+            <SelectTrigger>
+              <SelectValueText placeholder="Select student" />
+            </SelectTrigger>
+            <SelectPositioner>
+              <SelectContent>
                 {studentCollection.items.map((item: {id: string, label: string}) => (
-                  <Select.Item key={item.id} item={item}>{item.label}</Select.Item>
+                  <SelectItem key={item.id} item={item}>{item.label}</SelectItem>
                 ))}
-              </Select.Content>
-            </Select.Positioner>
-          </Select.Root>
-          <Field.ErrorMessage>{errors.student}</Field.ErrorMessage>
+              </SelectContent>
+            </SelectPositioner>
+          </SelectRoot>
+          {errors.student && <Field.HelperText color="red.500">{errors.student}</Field.HelperText>}
         </Field.Root>
 
-        <Field.Root name="school_class" isRequired isInvalid={!!errors.school_class}>
+        <Field.Root required invalid={!!errors.school_class}>
           <Field.Label>Class</Field.Label>
-          <Select.Root
+          <SelectRoot
             id="school_class"
-            value={formData.school_class ? [formData.school_class.toString()] : []}
-            onValueChange={(details) => handleInputChange({ target: { name: 'school_class', value: details.value.length > 0 ? details.value[0] : '' } } as any)}
-            placeholder="Select class"
-            items={schoolClassCollection}
+            value={formData.school_class !== undefined ? [String(formData.school_class)] : []}
+            onValueChange={handleSchoolClassChange}
+            collection={schoolClassCollection}
           >
-            <Select.Trigger />
-            <Select.Positioner>
-              <Select.Content>
+            <SelectTrigger>
+              <SelectValueText placeholder="Select class" />
+            </SelectTrigger>
+            <SelectPositioner>
+              <SelectContent>
                 {schoolClassCollection.items.map((item: {id: string, label: string}) => (
-                  <Select.Item key={item.id} item={item}>{item.label}</Select.Item>
+                  <SelectItem key={item.id} item={item}>{item.label}</SelectItem>
                 ))}
-              </Select.Content>
-            </Select.Positioner>
-          </Select.Root>
-          <Field.ErrorMessage>{errors.school_class}</Field.ErrorMessage>
+              </SelectContent>
+            </SelectPositioner>
+          </SelectRoot>
+          {errors.school_class && <Field.HelperText color="red.500">{errors.school_class}</Field.HelperText>}
         </Field.Root>
 
-        <Field.Root name="rule_sub_item" isRequired isInvalid={!!errors.rule_sub_item}>
+        <Field.Root required invalid={!!errors.rule_sub_item}>
           <Field.Label>Behavior Rule</Field.Label>
-          <Select.RootNative
+          <ChakraSelect
             id="rule_sub_item_native"
             name="rule_sub_item"
-            value={formData.rule_sub_item?.toString() || ''}
-            onChange={handleInputChange} 
+            value={formData.rule_sub_item?.toString() || ''} // Ensure value is string for native select
+            onChange={handleInputChange}
             placeholder="Select rule"
           >
             {Object.entries(organizedRules).map(([chapterName, dimensions]) => (
               <optgroup key={chapterName} label={`Chapter: ${chapterName}`}>
-                {Object.entries(dimensions).map(([dimensionName, rules]) => (
-                  <React.Fragment key={dimensionName}>
-                    {rules.map((rule) => (
+                {Object.entries(dimensions).map(([dimensionName, rules]) =>
+                  rules.map((rule: EnrichedRuleSubItem) => (
                       <option key={rule.id} value={rule.id}>
                         {dimensionName} - {rule.name}
                       </option>
-                    ))}
-                  </React.Fragment>
-                ))}
+                  ))
+                )}
               </optgroup>
             ))}
-          </Select.RootNative>
-          <Field.ErrorMessage>{errors.rule_sub_item}</Field.ErrorMessage>
+          </ChakraSelect>
+          {errors.rule_sub_item && <Field.HelperText color="red.500">{errors.rule_sub_item}</Field.HelperText>}
         </Field.Root>
 
-        <Field.Root name="score_type">
+        <Field.Root>
           <Field.Label>Score Type</Field.Label>
-          <Select.RootNative
+          <ChakraSelect
             id="score_type_native"
             name="score_type"
             value={formData.score_type || 'positive'}
@@ -218,26 +271,26 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
           >
             <option value="positive">Positive</option>
             <option value="negative">Negative</option>
-          </Select.RootNative>
+          </ChakraSelect>
         </Field.Root>
 
-        <Field.Root name="points" isRequired isInvalid={!!errors.points}>
+        <Field.Root required invalid={!!errors.points}>
           <Field.Label>Points</Field.Label>
           <NumberInput.Root
             min={1}
-            value={formData.points?.toString() || "1"}
-            onValueChange={(details) => handleNumberInputChange('points', details.value, details.valueAsNumber)}
+            value={(formData.points ?? 1).toString()} 
+            onValueChange={(details) => handleNumberInputChange('points', details.valueAsNumber)}
           >
-            <NumberInput.Field />
+            <NumberInput.Input />
             <NumberInput.Control>
               <NumberInput.IncrementTrigger />
               <NumberInput.DecrementTrigger />
             </NumberInput.Control>
           </NumberInput.Root>
-          <Field.ErrorMessage>{errors.points}</Field.ErrorMessage>
+          {errors.points && <Field.HelperText color="red.500">{errors.points}</Field.HelperText>}
         </Field.Root>
 
-        <Field.Root name="date_of_behavior" isRequired isInvalid={!!errors.date_of_behavior}>
+        <Field.Root required invalid={!!errors.date_of_behavior}>
           <Field.Label>Date of Behavior</Field.Label>
           <Input
             name="date_of_behavior"
@@ -245,10 +298,10 @@ const BehaviorScoreForm: React.FC<BehaviorScoreFormProps> = ({
             value={formData.date_of_behavior || ''}
             onChange={handleInputChange}
           />
-          <Field.ErrorMessage>{errors.date_of_behavior}</Field.ErrorMessage>
+          {errors.date_of_behavior && <Field.HelperText color="red.500">{errors.date_of_behavior}</Field.HelperText>}
         </Field.Root>
 
-        <Field.Root name="comment">
+        <Field.Root>
           <Field.Label>Comments</Field.Label>
           <Textarea
             name="comment"
