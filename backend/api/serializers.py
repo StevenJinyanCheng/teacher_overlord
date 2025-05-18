@@ -269,7 +269,7 @@ class AwardSerializer(serializers.ModelSerializer):
     
     def get_student_name(self, obj):
         return f"{obj.student.first_name} {obj.student.last_name}".strip()
-      def get_awarder_name(self, obj):
+    def get_awarder_name(self, obj):
         if obj.awarded_by:
             return f"{obj.awarded_by.first_name} {obj.awarded_by.last_name}".strip()
         return None

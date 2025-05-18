@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { Box, Button, Stack, Heading, useToast } from '@chakra-ui/react';
 import { 
-  Box, 
-  Button, 
   FormControl, 
   FormLabel, 
+  FormErrorMessage,
   Input, 
   Select, 
   Textarea,
-  Stack,
-  Heading,
-  useToast,
-  FormErrorMessage,
   NumberInput,
   NumberInputField,
   NumberInputStepper,
   NumberIncrementStepper,
   NumberDecrementStepper
-} from '@chakra-ui/react';
-import { Award, getUsers, createAward, updateAward, CustomUser } from '../services/apiService';
+} from '@chakra-ui/react/components';
+import { getUsers, createAward, updateAward } from '../services/apiService';
+import type { Award, User } from '../services/apiService';
 
 interface AwardFormProps {
   initialAward?: Partial<Award>;
@@ -25,8 +22,7 @@ interface AwardFormProps {
   onCancel: () => void;
 }
 
-const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel }) => {
-  const [award, setAward] = useState<Partial<Award>>({
+const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel }) => {  const [award, setAward] = useState<Partial<Award>>({
     name: '',
     description: '',
     award_type: 'star',
@@ -36,7 +32,7 @@ const AwardForm: React.FC<AwardFormProps> = ({ initialAward, onSave, onCancel })
     ...initialAward
   });
   
-  const [students, setStudents] = useState<CustomUser[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const toast = useToast();
   const isEditing = Boolean(initialAward?.id);

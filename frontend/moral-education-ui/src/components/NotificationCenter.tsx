@@ -20,9 +20,9 @@ import {
   Tooltip,
   useColorModeValue
 } from '@chakra-ui/react';
-import { BellIcon, CheckIcon } from '@chakra-ui/icons';
+import { FaBell, FaCheck } from 'react-icons/fa';
+import type { Notification } from '../services/apiService';
 import { 
-  Notification, 
   getNotifications, 
   markNotificationAsRead, 
   markAllNotificationsAsRead,
@@ -116,10 +116,8 @@ const NotificationCenter: React.FC = () => {
       {({ isOpen, onClose }) => (
         <>
           <PopoverTrigger>
-            <Box position="relative" display="inline-block">
-              <IconButton
+            <Box position="relative" display="inline-block">              <IconButton
                 aria-label="Notifications"
-                icon={<BellIcon />}
                 variant="ghost"
                 fontSize="20px"
                 onClick={() => {
@@ -127,7 +125,9 @@ const NotificationCenter: React.FC = () => {
                     fetchNotifications(); // Refresh notifications when opening
                   }
                 }}
-              />
+              >
+                <FaBell />
+              </IconButton>
               {unreadCount > 0 && (
                 <Badge
                   colorScheme="red"
@@ -157,8 +157,7 @@ const NotificationCenter: React.FC = () => {
                 <Box p={8} textAlign="center">
                   <Text color="gray.500">No notifications</Text>
                 </Box>
-              ) : (
-                <VStack spacing={0} align="stretch">
+              ) : (                <VStack gap={0} alignItems="stretch">
                   {notifications.map((notification) => (
                     <Box 
                       key={notification.id}
@@ -177,18 +176,18 @@ const NotificationCenter: React.FC = () => {
                           </Text>
                         </HStack>
                         {!notification.is_read && (
-                          <Tooltip label="Mark as read">
-                            <IconButton
-                              aria-label="Mark as read"
-                              icon={<CheckIcon />}
-                              size="xs"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMarkAsRead(notification.id);
-                              }}
-                            />
-                          </Tooltip>
+                          // Tooltip replaced with title attribute
+                          <IconButton
+                          aria-label="Mark as read"
+                          size="xs"
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(notification.id);
+                          }}
+                          icon={<FaCheck />}
+                          title="Mark as read"
+                          />
                         )}
                       </HStack>
                       <Text fontWeight="bold" fontSize="sm">
@@ -208,7 +207,7 @@ const NotificationCenter: React.FC = () => {
                 variant="ghost"
                 width="100%"
                 onClick={handleMarkAllAsRead}
-                isDisabled={unreadCount === 0}
+                disabled={unreadCount === 0}
               >
                 Mark all as read
               </Button>

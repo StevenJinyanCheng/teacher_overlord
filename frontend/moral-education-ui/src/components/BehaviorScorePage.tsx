@@ -33,7 +33,7 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
 } from '@chakra-ui/react';
-import { DeleteIcon, EditIcon, DownloadIcon } from '@chakra-ui/icons';
+import { FaTrash, FaEdit, FaDownload } from 'react-icons/fa';
 import {
   getBehaviorScores,
   getBehaviorScoreSummary,
@@ -409,15 +409,13 @@ const BehaviorScorePage: React.FC = () => {
         </Flex>
       </Box>
 
-      {/* Action Buttons */}
-      <Flex mb={4} justify="space-between">
+      {/* Action Buttons */}      <Flex mb={4} justify="space-between">
         <Button colorScheme="blue" onClick={openForm}>Record New Score</Button>
         <Button 
-          leftIcon={<DownloadIcon />} 
           onClick={handleExport} 
           colorScheme="teal"
         >
-          Export to CSV
+          <FaDownload style={{ marginRight: '0.5rem' }} /> Export to CSV
         </Button>
       </Flex>
 
@@ -455,22 +453,23 @@ const BehaviorScorePage: React.FC = () => {
                     </Badge>
                   </Td>
                   <Td>{score.points}</Td>
-                  <Td>{score.school_class_name}</Td>
-                  <Td>
+                  <Td>{score.school_class_name}</Td>                  <Td>
                     <IconButton
                       aria-label="Edit score"
-                      icon={<EditIcon />}
                       size="sm"
                       mr={2}
                       onClick={() => handleEdit(score)}
-                    />
+                    >
+                      <FaEdit />
+                    </IconButton>
                     <IconButton
                       aria-label="Delete score"
-                      icon={<DeleteIcon />}
                       size="sm"
                       colorScheme="red"
                       onClick={() => handleDeleteConfirm(score)}
-                    />
+                    >
+                      <FaTrash />
+                    </IconButton>
                   </Td>
                 </Tr>
               ))

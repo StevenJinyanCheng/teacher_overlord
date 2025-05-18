@@ -27,8 +27,9 @@ import {
   AlertDialogContent,
   AlertDialogOverlay
 } from '@chakra-ui/react';
-import { EditIcon, DeleteIcon, StarIcon } from '@chakra-ui/icons';
-import { Award, getAwards, deleteAward, getUsers } from '../services/apiService';
+import { FaEdit, FaTrash, FaStar } from 'react-icons/fa';
+import type { Award } from '../services/apiService';
+import { deleteAward, getUsers } from '../services/apiService';
 
 interface AwardListProps {
   onEdit: (award: Award) => void;
@@ -105,14 +106,13 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
       setAwardToDelete(null);
     }
   };
-
   const renderStarRating = (level: number) => {
     return Array(5)
       .fill('')
       .map((_, i) => (
-        <StarIcon
+        <FaStar
           key={i}
-          color={i < level ? 'yellow.500' : 'gray.300'}
+          color={i < level ? 'goldenrod' : 'lightgray'}
         />
       ));
   };
@@ -241,28 +241,29 @@ const AwardList: React.FC<AwardListProps> = ({ onEdit, onRefresh, awards, isLoad
                   <Td>{getAwardTypeBadge(award.award_type)}</Td>
                   <Td>
                     {award.award_type === 'star' ? (
-                      <HStack spacing={1}>{renderStarRating(award.level)}</HStack>
+                      <HStack gap={1}>{renderStarRating(award.level)}</HStack>
                     ) : (
                       award.level
                     )}
                   </Td>
                   <Td>{new Date(award.award_date).toLocaleDateString()}</Td>
                   <Td>{award.awarder_name || "System"}</Td>
-                  <Td>
-                    <HStack spacing={2}>
+                  <Td>                    <HStack>
                       <IconButton
                         aria-label="Edit award"
-                        icon={<EditIcon />}
                         size="sm"
                         onClick={() => onEdit(award)}
-                      />
+                      >
+                        <FaEdit />
+                      </IconButton>
                       <IconButton
                         aria-label="Delete award"
-                        icon={<DeleteIcon />}
                         size="sm"
                         colorScheme="red"
                         onClick={() => confirmDelete(award)}
-                      />
+                      >
+                        <FaTrash />
+                      </IconButton>
                     </HStack>
                   </Td>
                 </Tr>

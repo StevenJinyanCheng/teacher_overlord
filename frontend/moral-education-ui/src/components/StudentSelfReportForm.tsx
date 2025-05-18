@@ -190,7 +190,7 @@ const StudentSelfReportForm: React.FC<StudentSelfReportFormProps> = ({
             </GridItem>
             
             <GridItem colSpan={12}>
-              <HStack spacing={4} justify="flex-end" mt={4}>
+              <HStack gap={4} justify="flex-end" mt={4}>
                 <Button 
                   variant="outline" 
                   onClick={() => {

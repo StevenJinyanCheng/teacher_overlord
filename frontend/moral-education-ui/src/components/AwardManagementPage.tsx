@@ -14,8 +14,9 @@ import {
   TabPanel,
   Flex
 } from '@chakra-ui/react';
-import { AddIcon } from '@chakra-ui/icons';
-import { Award, getAwards } from '../services/apiService';
+import { FaPlus } from 'react-icons/fa';
+import type { Award } from '../services/apiService';
+import { getAwards } from '../services/apiService';
 import AwardForm from './AwardForm';
 import AwardList from './AwardList';
 import AwardMetricsPanel from './AwardMetricsPanel';
@@ -86,15 +87,12 @@ const AwardManagementPage: React.FC = () => {
   return (
     <Container maxW="container.xl" py={5}>
       <Flex justifyContent="space-between" alignItems="center" mb={6}>
-        <Heading as="h1" size="lg">Award Management</Heading>
-        
-        <Button 
-          leftIcon={<AddIcon />}
+        <Heading as="h1" size="lg">Award Management</Heading>        <Button 
           colorScheme="green"
           onClick={handleCreateClick}
-          isDisabled={isCreating}
+          disabled={isCreating}
         >
-          New Award
+          <FaPlus style={{ marginRight: '0.5rem' }} /> New Award
         </Button>
       </Flex>
       

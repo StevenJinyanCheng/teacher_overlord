@@ -391,6 +391,9 @@ export const deleteSubItem = async (id: number): Promise<void> => {
   await apiClient.delete(`/rule-subitems/${id}/`);
 };
 
+// Alias for getSubItems to maintain compatibility with existing components
+export const getRuleSubItems = getSubItems;
+
 // Grade API functions
 export const getGrades = async (): Promise<Grade[]> => {
   try {
